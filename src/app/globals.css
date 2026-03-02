@@ -2,26 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+
+
+@layer base {
+  :root {
+    /* ColorDrop design system: primary #FF6B6B, secondary #4ECDC4, accent #FFE66D, background #FFF9F0, text #2D3436 */
+    --background: 40 100% 97%;
+    --foreground: 210 9% 19%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 9% 19%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 9% 19%;
+    --primary: 0 100% 71%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 176 59% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 40 33% 94%;
+    --muted-foreground: 210 9% 45%;
+    --accent: 52 100% 71%;
+    --accent-foreground: 210 9% 19%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 40 20% 90%;
+    --input: 40 20% 90%;
+    --ring: 0 100% 71%;
+    --chart-1: 0 100% 71%;
+    --chart-2: 176 59% 55%;
+    --chart-3: 52 100% 71%;
+    --chart-4: 210 9% 19%;
+    --chart-5: 40 100% 97%;
+    --radius: 0.75rem;
+  }
+  .dark {
+    --background: 210 9% 12%;
+    --foreground: 40 100% 97%;
+    --card: 210 9% 15%;
+    --card-foreground: 40 100% 97%;
+    --popover: 210 9% 15%;
+    --popover-foreground: 40 100% 97%;
+    --primary: 0 100% 71%;
+    --primary-foreground: 210 9% 19%;
+    --secondary: 176 59% 45%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 210 9% 20%;
+    --muted-foreground: 40 33% 70%;
+    --accent: 52 100% 65%;
+    --accent-foreground: 210 9% 19%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 9% 22%;
+    --input: 210 9% 22%;
+    --ring: 0 100% 71%;
+    --chart-1: 0 100% 71%;
+    --chart-2: 176 59% 55%;
+    --chart-3: 52 100% 71%;
+    --chart-4: 40 100% 97%;
+    --chart-5: 210 9% 19%;
   }
 }

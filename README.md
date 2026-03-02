@@ -1,8 +1,21 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ColorDrop
+
+Turn your photos into custom printed coloring books. See [PRD.md](PRD.md) for full product spec.
+
+## Stack
+
+Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui, Clerk, Supabase, Replicate, Stripe, Lulu.
+
+## Setup
+
+1. Copy `.env.example` to `.env.local` and fill in keys (Clerk, Supabase, Replicate, Stripe, etc.).
+2. Run Supabase migrations in `supabase/migrations/`.
+3. Create Supabase Storage buckets: `originals`, `outlines`, `covers`, `pdfs`.
+4. For Stripe webhooks, point `checkout.session.completed` to `https://your-domain/api/webhooks/stripe`.
 
 ## Getting Started
 
-First, run the development server:
+Run the development server:
 
 ```bash
 npm run dev
