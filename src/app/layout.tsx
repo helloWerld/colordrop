@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/react";
 import { Nunito, Inter } from "next/font/google";
+import { clerkThemeVariables } from "@/lib/clerk-theme";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -24,7 +25,8 @@ export const metadata: Metadata = {
     "Turn your favorite photos into custom, printed coloring books. Upload photos, AI converts them to coloring pages, we print and ship.",
   openGraph: {
     title: "ColorDrop — Color Your Photos",
-    description: "Turn your favorite photos into custom, printed coloring books.",
+    description:
+      "Turn your favorite photos into custom, printed coloring books.",
     type: "website",
   },
 };
@@ -41,14 +43,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const bodyContent = isClerkConfigured ? (
-    <ClerkProvider publishableKey={clerkPubKey}>{children}</ClerkProvider>
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      appearance={{ variables: clerkThemeVariables }}
+    >
+      {children}
+    </ClerkProvider>
   ) : (
     children
   );
 
   return (
     <html lang="en" className={`${nunito.variable} ${inter.variable}`}>
-      <body className="font-sans antialiased bg-background text-foreground">
+      <body className="flex flex-col items-stretch min-h-screen mx-auto w-full max-w-7xl font-sans antialiased bg-background text-foreground">
         {bodyContent}
         <Analytics />
       </body>

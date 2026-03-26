@@ -29,7 +29,8 @@ export function DeleteAccountSection() {
         Account
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        Permanently delete your account and all associated data (saved pages, books, profile). This cannot be undone.
+        Permanently delete your account and all associated data (saved pages,
+        books, profile). This cannot be undone.
       </p>
       <button
         type="button"
@@ -44,14 +45,15 @@ export function DeleteAccountSection() {
           <div className="rounded-2xl border border-border bg-card p-6 shadow-lg max-w-sm">
             <p className="font-medium text-foreground">Delete your account?</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              This will permanently delete your account and all your data. You will be signed out. This cannot be undone.
+              This will permanently delete your account and all your data. You
+              will be signed out. This cannot be undone.
             </p>
             <div className="mt-6 flex gap-3 justify-end">
               <button
                 type="button"
                 disabled={deleting}
                 onClick={() => setConfirmOpen(false)}
-                className="rounded-full border border-border px-4 py-2 text-sm font-medium hover:bg-muted/50"
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted/50"
               >
                 Cancel
               </button>
@@ -59,7 +61,7 @@ export function DeleteAccountSection() {
                 type="button"
                 disabled={deleting}
                 onClick={handleDelete}
-                className="rounded-full bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                className="rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
               >
                 {deleting ? "Deleting…" : "Delete account"}
               </button>

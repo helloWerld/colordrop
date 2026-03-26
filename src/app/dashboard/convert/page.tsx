@@ -3,25 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 
-const STYLIZATION_OPTIONS = [
-  { value: "none", label: "No stylization" },
-  { value: "fairy_tale", label: "Fairy tale" },
-  { value: "cartoon", label: "Cartoon" },
-  { value: "storybook", label: "Storybook" },
-  { value: "sketch", label: "Sketch" },
-] as const;
-
 export default function ConvertPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [stylization, setStylization] = useState<string>("none");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [credits, setCredits] = useState<{
     free_remaining: number;
-    credits_single: number;
-    credits_pack_50: number;
-    credits_pack_100: number;
+    paid_credits: number;
   } | null>(null);
 
   const loadCredits = async () => {
@@ -37,12 +26,7 @@ export default function ConvertPage() {
   }
 
   const totalCredits =
-    credits != null
-      ? credits.free_remaining +
-        credits.credits_single +
-        credits.credits_pack_50 +
-        credits.credits_pack_100
-      : 0;
+    credits != null ? credits.free_remaining + credits.paid_credits : 0;
 
   const handleConvert = async () => {
     if (!file) {
@@ -69,7 +53,6 @@ export default function ConvertPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           storage_path: path,
-          stylization,
           conversion_context: "one_off",
         }),
       });
@@ -80,7 +63,8 @@ export default function ConvertPage() {
       }
       if (!convertRes.ok) {
         const data = await convertRes.json().catch(() => ({}));
-        throw new Error(data.error || "Conversion failed");
+        const msg = data?.error || `Conversion failed (${convertRes.status})`;
+        throw new Error(msg);
       }
       const data = await convertRes.json();
       setResultUrl(data.outline_url ?? null);
@@ -111,8 +95,8 @@ export default function ConvertPage() {
           Convert an Image
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Use one credit to turn a photo into a coloring page. Result is saved to
-          My Saved Pages.
+          Use one credit to turn a photo into a coloring page. Result is saved
+          to My Saved Pages.
         </p>
       </div>
 
@@ -120,32 +104,13 @@ export default function ConvertPage() {
         <p className="text-sm text-muted-foreground">
           {credits.free_remaining > 0
             ? "This conversion uses 1 free credit."
-            : "This conversion uses 1 credit."}{" "}
-          ({credits.free_remaining} free left,{" "}
-          {credits.credits_single + credits.credits_pack_50 + credits.credits_pack_100}{" "}
-          purchased)
+            : "This conversion uses 1 paid credit."}{" "}
+          ({credits.free_remaining} free left, {credits.paid_credits} paid)
         </p>
       )}
 
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <label className="block font-medium text-foreground">
-          Stylization
-        </label>
-        <select
-          value={stylization}
-          onChange={(e) => setStylization(e.target.value)}
-          className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-        >
-          {STYLIZATION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-
-        <label className="mt-4 block font-medium text-foreground">
-          Image
-        </label>
+        <label className="block font-medium text-foreground">Image</label>
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
@@ -154,18 +119,16 @@ export default function ConvertPage() {
             setResultUrl(null);
             setError(null);
           }}
-          className="mt-2 block w-full text-sm text-muted-foreground file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+          className="mt-2 block w-full text-sm text-muted-foreground file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
         />
 
-        {error && (
-          <p className="mt-4 text-sm text-destructive">{error}</p>
-        )}
+        {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
         <button
           type="button"
           onClick={handleConvert}
           disabled={loading || !file || totalCredits === 0}
-          className="mt-6 w-full rounded-full bg-primary px-4 py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="mt-6 w-full rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {loading ? "Converting..." : "Convert"}
         </button>
@@ -187,27 +150,27 @@ export default function ConvertPage() {
               download="coloring-page.png"
               target="_blank"
               rel="noreferrer"
-              className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               Download
             </a>
             <button
               type="button"
               onClick={handlePrint}
-              className="rounded-full border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50"
+              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50"
             >
               Print
             </button>
             <Link
               href="/dashboard/books/new"
-              className="rounded-full border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50"
+              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50"
             >
               Add to Book
             </Link>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Saved to My Saved Pages. Adding this to a book later won’t apply
-            credit toward the book price.
+            Saved to My Saved Pages. Credits are used only for conversions; book
+            price is separate.
           </p>
         </div>
       )}

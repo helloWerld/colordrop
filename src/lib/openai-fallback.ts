@@ -1,21 +1,22 @@
 /**
  * OpenAI image edit fallback when Replicate fails.
- * PRD §4.7: "Convert this photo to a clean black-and-white coloring book page..."
+ * PRD §7.5: Optional second fallback; reserved for future use.
+ *
+ * Currently not used (conversion uses Gemini primary, Replicate fallback).
+ * Kept for future use: call from orchestrator after Replicate fails if desired.
  */
 
 import OpenAI from "openai";
-import type { Stylization } from "./validators";
-import { STYLIZATION_PROMPTS } from "./stylization-prompts";
 
-export async function runLineartOpenAIFallback(
-  imageUrl: string,
-  stylization: Stylization
-): Promise<string> {
+const LINEART_PROMPT =
+  "Convert this exact image into a coloring book page. Keep the same composition and subject. Output outline-only: thin black lines on white or transparent background. No solid black fills, no large black areas, no shading, no color—only clear outlines suitable for coloring.";
+
+export async function runLineartOpenAIFallback(imageUrl: string): Promise<string> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY is not set");
 
   const openai = new OpenAI({ apiKey: key });
-  const prompt = STYLIZATION_PROMPTS[stylization];
+  const prompt = LINEART_PROMPT;
 
   const imageRes = await fetch(imageUrl);
   if (!imageRes.ok) throw new Error("Failed to fetch image for OpenAI");
@@ -27,7 +28,7 @@ export async function runLineartOpenAIFallback(
     image: imageFile,
     prompt:
       prompt +
-      " Output only a black-and-white outline image, no color, no shading, white background.",
+      " White or transparent background only.",
     n: 1,
     size: "1024x1024",
   });

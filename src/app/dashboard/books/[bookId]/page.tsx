@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { BookEditorClient } from "./book-editor-client";
+import { DeleteBookButton } from "./delete-book-button";
 
 export default async function BookEditorPage({
   params,
@@ -33,7 +34,9 @@ export default async function BookEditorPage({
 
   const { data: pages } = await supabase
     .from("pages")
-    .select("id, position, outline_image_path, conversion_status")
+    .select(
+      "id, position, outline_image_path, conversion_status, crop_rect, rotation_degrees",
+    )
     .eq("book_id", bookId)
     .order("position", { ascending: true });
 
@@ -43,16 +46,22 @@ export default async function BookEditorPage({
         .from("outlines")
         .createSignedUrl(p.outline_image_path, 3600);
       return { ...p, outline_url: signed?.signedUrl ?? null };
-    })
+    }),
   );
 
   const { data: cover } = await supabase
     .from("covers")
-    .select("id, image_path")
+    .select("id, image_path, crop_rect, rotation_degrees")
     .eq("book_id", bookId)
     .single();
 
-  let initialCover: { id: string; image_path: string; cover_url?: string | null } | null = cover ?? null;
+  let initialCover: {
+    id: string;
+    image_path: string;
+    crop_rect?: { x?: number; y?: number; width?: number; height?: number } | null;
+    rotation_degrees?: number | null;
+    cover_url?: string | null;
+  } | null = cover ?? null;
   if (cover?.image_path) {
     const { data: coverSigned } = await supabase.storage
       .from("covers")
@@ -61,7 +70,7 @@ export default async function BookEditorPage({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
       <div>
         <Link
           href="/dashboard"
@@ -73,6 +82,9 @@ export default async function BookEditorPage({
           Book Editor
         </h1>
       </div>
+
+      <DeleteBookButton bookId={bookId} />
+      {/* Book Editor Client */}
       <BookEditorClient
         bookId={bookId}
         initialBook={book}

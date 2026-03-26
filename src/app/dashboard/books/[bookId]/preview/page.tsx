@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
+import type { CropRectInput } from "@/components/crop-rotate-editor";
+import { getProductByTrimCode } from "@/lib/book-products";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { PreviewClient } from "./preview-client";
 
@@ -15,7 +17,7 @@ export default async function BookPreviewPage({
   const supabase = createServerSupabaseClient();
   const { data: book, error: bookError } = await supabase
     .from("books")
-    .select("id, title, page_count, credits_applied_value_cents")
+    .select("id, title, page_count, trim_size")
     .eq("id", bookId)
     .eq("user_id", userId)
     .single();
@@ -33,28 +35,49 @@ export default async function BookPreviewPage({
 
   const { data: pages } = await supabase
     .from("pages")
-    .select("id, position, outline_image_path")
+    .select("id, position, outline_image_path, crop_rect, rotation_degrees")
     .eq("book_id", bookId)
     .order("position", { ascending: true });
 
   const { data: cover } = await supabase
     .from("covers")
-    .select("id, image_path")
+    .select("id, image_path, crop_rect, rotation_degrees")
     .eq("book_id", bookId)
     .single();
 
+  const product = book.trim_size ? getProductByTrimCode(book.trim_size) : null;
+  const trimAspectRatio = product
+    ? product.widthInches / product.heightInches
+    : 9 / 16;
+
   const coverUrl = cover
-    ? (await supabase.storage.from("covers").createSignedUrl(cover.image_path, 3600)).data?.signedUrl ?? null
+    ? ((
+        await supabase.storage
+          .from("covers")
+          .createSignedUrl(cover.image_path, 3600)
+      ).data?.signedUrl ?? null)
     : null;
 
-  const pageUrls: string[] = [];
+  const previewPages: {
+    url: string;
+    crop_rect: CropRectInput;
+    rotation_degrees: number | null;
+  }[] = [];
   for (const p of pages ?? []) {
-    const { data: d } = await supabase.storage.from("outlines").createSignedUrl(p.outline_image_path, 3600);
-    if (d?.signedUrl) pageUrls.push(d.signedUrl);
+    const { data: d } = await supabase.storage
+      .from("outlines")
+      .createSignedUrl(p.outline_image_path, 3600);
+    if (d?.signedUrl) {
+      previewPages.push({
+        url: d.signedUrl,
+        crop_rect: (p.crop_rect as CropRectInput) ?? null,
+        rotation_degrees: p.rotation_degrees ?? null,
+      });
+    }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl mx-auto w-full space-y-6">
       <div>
         <Link
           href={`/dashboard/books/${bookId}`}
@@ -70,9 +93,11 @@ export default async function BookPreviewPage({
         bookId={bookId}
         title={book.title ?? "My Coloring Book"}
         coverUrl={coverUrl}
-        pageUrls={pageUrls}
+        coverCropRect={cover?.crop_rect ?? null}
+        coverRotation={cover?.rotation_degrees ?? null}
+        trimAspectRatio={trimAspectRatio}
+        previewPages={previewPages}
         pageCount={book.page_count ?? 0}
-        creditsAppliedCents={book.credits_applied_value_cents ?? 0}
       />
     </div>
   );

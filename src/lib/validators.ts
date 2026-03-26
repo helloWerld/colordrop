@@ -1,21 +1,17 @@
 import imageSize from "image-size";
 import { z } from "zod";
-
-export const stylizationEnum = z.enum([
-  "none",
-  "fairy_tale",
-  "cartoon",
-  "storybook",
-  "sketch",
-]);
-export type Stylization = z.infer<typeof stylizationEnum>;
+import {
+  CA_PROVINCE_CODES,
+  SHIPPING_COUNTRY_CODES,
+  US_CHECKOUT_STATE_CODES,
+} from "./shipping-regions";
+import { normalizeUsStateCodeForLulu } from "./us-state";
 
 export const conversionContextEnum = z.enum(["one_off", "book"]);
 export type ConversionContext = z.infer<typeof conversionContextEnum>;
 
 export const convertBodySchema = z.object({
   storage_path: z.string().min(1),
-  stylization: stylizationEnum,
   conversion_context: conversionContextEnum,
   book_id: z.string().uuid().optional(),
 });
@@ -30,16 +26,78 @@ export const shippingLevelEnum = z.enum([
   "EXPRESS",
 ]);
 
-export const shippingAddressSchema = z.object({
+const shippingCountrySchema = z.enum(SHIPPING_COUNTRY_CODES);
+
+const shippingAddressBaseSchema = z.object({
   name: z.string().min(1),
   line1: z.string().min(1),
   line2: z.string().optional(),
   city: z.string().min(1),
   state: z.string().min(1),
   postal_code: z.string().min(1),
-  country: z.string().length(2),
+  country: shippingCountrySchema,
   phone: z.string().min(1),
 });
+
+type AddressShape = { country: string; state: string; [k: string]: unknown };
+
+function withShippingRegionNormalization<T extends z.ZodObject<z.ZodRawShape>>(
+  schema: T
+) {
+  return schema
+    .superRefine((val, ctx) => {
+      const v = val as AddressShape;
+      const state = v.state.trim().toUpperCase();
+      if (!state) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Select a state or province.",
+          path: ["state"],
+        });
+        return;
+      }
+      if (v.country === "US") {
+        if (!US_CHECKOUT_STATE_CODES.has(state)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Select a valid US state or territory.",
+            path: ["state"],
+          });
+        }
+      } else if (v.country === "CA") {
+        if (!CA_PROVINCE_CODES.has(state)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Select a valid Canadian province or territory.",
+            path: ["state"],
+          });
+        }
+      }
+    })
+    .transform((val) => {
+      const v = val as AddressShape;
+      const state = v.state.trim().toUpperCase();
+      if (v.country === "US") {
+        const normalized = normalizeUsStateCodeForLulu(state);
+        return { ...val, state: normalized ?? state };
+      }
+      return { ...val, state };
+    });
+}
+
+export const shippingAddressSchema = withShippingRegionNormalization(
+  shippingAddressBaseSchema
+);
+
+/** POST /api/books/[bookId]/price body: address fields + shipping_level */
+export const bookPricePostSchema = withShippingRegionNormalization(
+  shippingAddressBaseSchema.extend({
+    shipping_level: z.enum(["MAIL", "PRIORITY_MAIL", "EXPEDITED"]),
+  })
+);
+
+export type ShippingAddressInput = z.infer<typeof shippingAddressSchema>;
+export type BookPricePostInput = z.infer<typeof bookPricePostSchema>;
 
 export const ALLOWED_MIME_TYPES = [
   "image/jpeg",

@@ -1,7 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase";
-import { calculateBookPrice, SHIPPING_LEVELS } from "@/lib/pricing";
+import { SHIPPING_LEVELS } from "@/lib/pricing";
+import { getProductByTrimCode } from "@/lib/book-products";
+import { isLuluSandbox } from "@/lib/lulu";
 import { CheckoutForm } from "./checkout-form";
 
 export default async function CheckoutPage({
@@ -16,7 +18,7 @@ export default async function CheckoutPage({
   const supabase = createServerSupabaseClient();
   const { data: book, error: bookError } = await supabase
     .from("books")
-    .select("id, title, page_count, credits_applied_value_cents")
+    .select("id, title, page_count, trim_size, page_tier")
     .eq("id", bookId)
     .eq("user_id", userId)
     .single();
@@ -32,10 +34,40 @@ export default async function CheckoutPage({
     );
   }
 
+  if (!book.trim_size) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <Link
+            href={`/dashboard/books/${bookId}/preview`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            ← Preview
+          </Link>
+          <h1 className="mt-2 font-heading text-2xl font-bold text-foreground">
+            Checkout
+          </h1>
+        </div>
+        <div
+          className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-sm"
+          role="alert"
+        >
+          <p className="font-medium text-foreground">
+            This book has no print size configured
+          </p>
+          <p className="mt-2 text-muted-foreground">
+            Choose a book size in the editor before checkout.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const pageCount = book.page_count ?? 0;
-  const creditsApplied = book.credits_applied_value_cents ?? 0;
-  const defaultLevel = "MAIL" as const;
-  const breakdown = calculateBookPrice(pageCount, defaultLevel, creditsApplied);
+  const product = getProductByTrimCode(book.trim_size);
+  const bookSizeLabel = product
+    ? `${product.label} ${product.widthInches}" × ${product.heightInches}"`
+    : `${pageCount} pages`;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -53,8 +85,9 @@ export default async function CheckoutPage({
       <CheckoutForm
         bookId={bookId}
         bookTitle={book.title ?? "My Coloring Book"}
+        bookSizeLabel={bookSizeLabel}
         pageCount={pageCount}
-        defaultBreakdown={breakdown}
+        luluSandbox={isLuluSandbox()}
         shippingOptions={SHIPPING_LEVELS}
       />
     </div>

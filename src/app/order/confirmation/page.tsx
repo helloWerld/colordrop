@@ -26,7 +26,9 @@ function ConfirmationContent() {
     }
     let cancelled = false;
     const poll = async () => {
-      const res = await fetch(`/api/orders/by-session?session_id=${encodeURIComponent(sessionId)}`);
+      const res = await fetch(
+        `/api/orders/by-session?session_id=${encodeURIComponent(sessionId)}`,
+      );
       const data = await res.json().catch(() => ({}));
       if (cancelled) return;
       if (data.order) {
@@ -45,7 +47,9 @@ function ConfirmationContent() {
   if (!sessionId) {
     return (
       <div className="container flex min-h-[50vh] flex-col items-center justify-center px-4">
-        <p className="text-muted-foreground">Missing session. Did you complete checkout?</p>
+        <p className="text-muted-foreground">
+          Missing session. Did you complete checkout?
+        </p>
         <Link href="/dashboard" className="mt-4 text-primary hover:underline">
           Back to Dashboard
         </Link>
@@ -64,7 +68,9 @@ function ConfirmationContent() {
   if (!order) {
     return (
       <div className="container flex min-h-[50vh] flex-col items-center justify-center px-4">
-        <p className="text-muted-foreground">We couldn’t find your order. It may still be processing.</p>
+        <p className="text-muted-foreground">
+          We couldn’t find your order. It may still be processing.
+        </p>
         <Link href="/dashboard" className="mt-4 text-primary hover:underline">
           Back to Dashboard
         </Link>
@@ -82,7 +88,7 @@ function ConfirmationContent() {
         Order #{order.id.slice(0, 8)}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        You paid ${((order.amount_total ?? 0) / 100).toFixed(2)}
+        You paid ${Math.round((order.amount_total ?? 0) / 100)}
       </p>
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Estimated delivery: 7–14 business days (standard shipping).
@@ -93,13 +99,13 @@ function ConfirmationContent() {
       <div className="mt-8 flex gap-4">
         <Link
           href="/dashboard"
-          className="rounded-full bg-primary px-6 py-3 font-medium text-primary-foreground hover:bg-primary/90"
+          className="rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground hover:bg-primary/90"
         >
           Back to Dashboard
         </Link>
         <Link
           href="/dashboard/books/new"
-          className="rounded-full border border-border px-6 py-3 font-medium hover:bg-muted/50"
+          className="rounded-lg border border-border px-6 py-3 font-medium hover:bg-muted/50"
         >
           Make Another Book
         </Link>
@@ -110,7 +116,13 @@ function ConfirmationContent() {
 
 export default function OrderConfirmationPage() {
   return (
-    <Suspense fallback={<div className="container flex min-h-[50vh] items-center justify-center px-4 text-muted-foreground">Loading…</div>}>
+    <Suspense
+      fallback={
+        <div className="container flex min-h-[50vh] items-center justify-center px-4 text-muted-foreground">
+          Loading…
+        </div>
+      }
+    >
       <ConfirmationContent />
     </Suspense>
   );

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, getStripeWebhookSecret } from "@/lib/stripe";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { runFulfillment } from "@/lib/fulfillment";
 import { getEmailForUserId, sendOrderConfirmation } from "@/lib/email";
@@ -9,12 +9,31 @@ export async function POST(request: Request) {
   const body = await request.text();
   const headersList = await headers();
   const sig = headersList.get("stripe-signature");
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret || !sig) {
-    return NextResponse.json({ error: "Missing webhook secret or signature" }, { status: 400 });
+  if (!sig) {
+    return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
   }
 
-  const stripe = getStripe();
+  let secret: string;
+  try {
+    secret = getStripeWebhookSecret();
+  } catch (e) {
+    console.error("Stripe webhook secret not configured", e);
+    return NextResponse.json(
+      { error: "Webhook signing secret not configured" },
+      { status: 500 }
+    );
+  }
+
+  let stripe;
+  try {
+    stripe = getStripe();
+  } catch (e) {
+    console.error("Stripe API key not configured", e);
+    return NextResponse.json(
+      { error: "Stripe API not configured" },
+      { status: 500 }
+    );
+  }
   let event: { type: string; data: { object: { id?: string; metadata?: Record<string, string> } } };
   try {
     event = stripe.webhooks.constructEvent(body, sig, secret) as typeof event;
@@ -27,9 +46,16 @@ export async function POST(request: Request) {
     const session = event.data.object as {
       id: string;
       amount_total?: number | null;
-      payment_intent?: string;
+      payment_intent?: string | { id: string } | null;
       metadata?: Record<string, string>;
     };
+    const paymentIntentRaw = session.payment_intent;
+    const stripePaymentIntentId =
+      typeof paymentIntentRaw === "string"
+        ? paymentIntentRaw
+        : paymentIntentRaw && typeof paymentIntentRaw === "object" && "id" in paymentIntentRaw
+          ? paymentIntentRaw.id
+          : null;
     const meta = session.metadata ?? {};
     const supabase = createServerSupabaseClient();
 
@@ -42,24 +68,25 @@ export async function POST(request: Request) {
       if (existing) {
         return NextResponse.json({ received: true });
       }
-      const col =
-        meta.package_type === "single"
-          ? "credits_single"
-          : meta.package_type === "pack_50"
-            ? "credits_pack_50"
-            : "credits_pack_100";
-      const qty = meta.package_type === "single" ? 1 : meta.package_type === "pack_50" ? 50 : 100;
+      let qty: number;
+      if (meta.package_type === "single") {
+        qty = Math.min(49, Math.max(1, parseInt(meta.credit_quantity ?? "1", 10) || 1));
+      } else if (meta.package_type === "pack_50") {
+        qty = 50;
+      } else {
+        qty = 100;
+      }
       const { data: profile } = await supabase
         .from("user_profiles")
-        .select("id, credits_single, credits_pack_50, credits_pack_100")
+        .select("id, paid_credits")
         .eq("user_id", meta.userId)
         .single();
       if (profile) {
-        const current = (profile as Record<string, number>)[col] ?? 0;
+        const current = (profile.paid_credits as number | null) ?? 0;
         await supabase
           .from("user_profiles")
           .update({
-            [col]: current + qty,
+            paid_credits: current + qty,
             updated_at: new Date().toISOString(),
           })
           .eq("id", profile.id);
@@ -89,6 +116,7 @@ export async function POST(request: Request) {
           book_id: meta.bookId,
           user_id: meta.userId,
           stripe_checkout_session_id: session.id,
+          stripe_payment_intent_id: stripePaymentIntentId,
           amount_total: amountTotal,
           currency: "usd",
           shipping_name: meta.shipping_name ?? "",

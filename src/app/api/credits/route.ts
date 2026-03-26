@@ -12,9 +12,7 @@ export async function GET() {
     const profile = await getOrCreateUserProfile(userId);
     return NextResponse.json({
       free_remaining: profile.free_conversions_remaining ?? 0,
-      credits_single: profile.credits_single ?? 0,
-      credits_pack_50: profile.credits_pack_50 ?? 0,
-      credits_pack_100: profile.credits_pack_100 ?? 0,
+      paid_credits: profile.paid_credits ?? 0,
     });
   } catch (e) {
     console.error("credits GET", e);

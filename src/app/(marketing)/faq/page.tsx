@@ -7,7 +7,7 @@ const qas = [
   },
   {
     q: "Do I need to pay for conversions?",
-    a: "New users get 5 free image conversions. After that, you can buy credits in packs of 1, 50, or 100. Credits used while creating a book count toward the book price at checkout.",
+    a: "New users get 3 free image conversions. After that, you can buy more credits (including discounted packs), which all go into a single paid credits balance. Credits are only used for conversions and cannot be applied toward book purchases; books are paid separately (printing/binding + shipping).",
   },
   {
     q: "Can I get a refund?",

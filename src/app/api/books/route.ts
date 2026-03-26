@@ -2,12 +2,46 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { getOrCreateUserProfile } from "@/lib/db";
+import {
+  BOOK_PRODUCTS,
+  getPodPackageId,
+  isPageTier,
+  isTrimSizeId,
+  type TrimSizeId,
+} from "@/lib/book-products";
 
-export async function POST() {
+export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  let body: { title?: string; trim_size_id?: string; page_tier?: number } = {};
+  try {
+    body = await request.json().catch(() => ({}));
+  } catch {
+    // no body
+  }
+  const title =
+    typeof body.title === "string" ? body.title.trim() : "";
+
+  const trimSizeId = typeof body.trim_size_id === "string" ? body.trim_size_id : "large";
+  const pageTier = typeof body.page_tier === "number" ? body.page_tier : 24;
+
+  if (!isTrimSizeId(trimSizeId)) {
+    return NextResponse.json(
+      { error: "Invalid trim size. Use pocket, medium, or large." },
+      { status: 400 }
+    );
+  }
+  if (!isPageTier(pageTier)) {
+    return NextResponse.json(
+      { error: "Invalid page tier. Use 12, 24, 32, 48, 64, or 128." },
+      { status: 400 }
+    );
+  }
+
+  const product = BOOK_PRODUCTS[trimSizeId as TrimSizeId];
 
   try {
     await getOrCreateUserProfile(userId);
@@ -25,9 +59,10 @@ export async function POST() {
     .insert({
       user_id: userId,
       status: "draft",
-      title: "My Coloring Book",
-      trim_size: "0850X0850",
-      pod_package_id: "0850X0850BWSTDPB060UW444MXX",
+      title,
+      trim_size: product.trimCode,
+      pod_package_id: getPodPackageId(trimSizeId as TrimSizeId, pageTier),
+      page_tier: pageTier,
       page_count: 0,
       credits_applied_value_cents: 0,
     })

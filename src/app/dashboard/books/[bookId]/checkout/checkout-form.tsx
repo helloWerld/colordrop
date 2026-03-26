@@ -1,25 +1,97 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ShippingLevelId } from "@/lib/pricing";
+import {
+  CA_PROVINCE_OPTIONS,
+  SHIPPING_COUNTRIES,
+  US_STATE_OPTIONS,
+} from "@/lib/shipping-regions";
+import { shippingAddressSchema } from "@/lib/validators";
+import { Loader2 } from "lucide-react";
+import Image from "next/image";
 
-type ShippingOption = { id: ShippingLevelId; label: string; days: string; cents: number };
+type ShippingOption = {
+  id: ShippingLevelId;
+  label: string;
+  days: string;
+  cents: number;
+};
+
+function buildQuoteKey(
+  level: ShippingLevelId,
+  f: {
+    name: string;
+    line1: string;
+    line2: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+    phone: string;
+  },
+): string {
+  return JSON.stringify({
+    level,
+    name: f.name.trim(),
+    line1: f.line1.trim(),
+    line2: f.line2.trim(),
+    city: f.city.trim(),
+    state: f.state.trim(),
+    postal_code: f.postal_code.trim(),
+    country: f.country,
+    phone: f.phone.trim(),
+  });
+}
+
+function shippingBody(
+  level: ShippingLevelId,
+  f: {
+    name: string;
+    line1: string;
+    line2: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+    phone: string;
+  },
+) {
+  const base = {
+    shipping_level: level,
+    name: f.name.trim(),
+    line1: f.line1.trim(),
+    city: f.city.trim(),
+    state: f.state.trim(),
+    postal_code: f.postal_code.trim(),
+    country: f.country,
+    phone: f.phone.trim(),
+  };
+  const line2 = f.line2.trim();
+  return line2 ? { ...base, line2 } : base;
+}
 
 export function CheckoutForm({
   bookId,
   bookTitle,
+  bookSizeLabel,
   pageCount,
-  defaultBreakdown,
+  luluSandbox,
   shippingOptions,
 }: {
   bookId: string;
   bookTitle: string;
+  bookSizeLabel: string;
   pageCount: number;
-  defaultBreakdown: { subtotalCents: number; shippingCents: number; creditsCents: number; totalCents: number };
+  luluSandbox: boolean;
   shippingOptions: ShippingOption[];
 }) {
   const [shippingLevel, setShippingLevel] = useState<ShippingLevelId>("MAIL");
-  const [price, setPrice] = useState(defaultBreakdown);
+  const [price, setPrice] = useState({
+    bookCents: 0,
+    shippingCents: 0,
+    totalCents: 0,
+  });
   const [form, setForm] = useState({
     name: "",
     line1: "",
@@ -32,23 +104,147 @@ export function CheckoutForm({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [priceFetchError, setPriceFetchError] = useState<string | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [matchedQuoteKey, setMatchedQuoteKey] = useState<string | null>(null);
 
-  const updatePrice = async (level: ShippingLevelId) => {
-    const res = await fetch(`/api/books/${bookId}/price?shipping_level=${level}`);
-    if (res.ok) {
-      const data = await res.json();
-      setPrice({
-        subtotalCents: data.subtotalCents,
-        shippingCents: data.shippingCents,
-        creditsCents: data.creditsCents,
-        totalCents: data.totalCents,
-      });
+  const addressComplete = useMemo(() => {
+    return shippingAddressSchema.safeParse({
+      name: form.name.trim(),
+      line1: form.line1.trim(),
+      line2: form.line2.trim() || undefined,
+      city: form.city.trim(),
+      state: form.state.trim(),
+      postal_code: form.postal_code.trim(),
+      country: form.country,
+      phone: form.phone.trim(),
+    }).success;
+  }, [
+    form.name,
+    form.line1,
+    form.line2,
+    form.city,
+    form.state,
+    form.postal_code,
+    form.country,
+    form.phone,
+  ]);
+
+  const currentQuoteKey = useMemo(
+    () => buildQuoteKey(shippingLevel, form),
+    [shippingLevel, form],
+  );
+
+  const showPricing =
+    addressComplete &&
+    matchedQuoteKey !== null &&
+    matchedQuoteKey === currentQuoteKey &&
+    price.totalCents > 0;
+
+  useEffect(() => {
+    if (!addressComplete) {
+      setMatchedQuoteKey(null);
+      setPrice({ bookCents: 0, shippingCents: 0, totalCents: 0 });
+      setPriceFetchError(null);
+      setPriceLoading(false);
+      return;
     }
-  };
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setPriceLoading(true);
+      setPriceFetchError(null);
+      try {
+        const res = await fetch(`/api/books/${bookId}/price`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(shippingBody(shippingLevel, form)),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok) {
+          setPrice({
+            bookCents: data.bookCents,
+            shippingCents: data.shippingCents,
+            totalCents: data.totalCents,
+          });
+          setMatchedQuoteKey(buildQuoteKey(shippingLevel, form));
+        } else {
+          setPriceFetchError(
+            data.error ??
+              "Could not get a shipping quote. Try again or contact support.",
+          );
+          setMatchedQuoteKey(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setPriceFetchError(
+            "Could not get a shipping quote. Try again or contact support.",
+          );
+          setMatchedQuoteKey(null);
+        }
+      } finally {
+        if (!cancelled) setPriceLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    addressComplete,
+    bookId,
+    form.name,
+    form.line1,
+    form.line2,
+    form.city,
+    form.state,
+    form.postal_code,
+    form.country,
+    form.phone,
+    shippingLevel,
+  ]);
 
   const handleShippingChange = (level: ShippingLevelId) => {
     setShippingLevel(level);
-    updatePrice(level);
+  };
+
+  const refetchQuote = () => {
+    if (!addressComplete) return;
+    setPriceLoading(true);
+    setPriceFetchError(null);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/books/${bookId}/price`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(shippingBody(shippingLevel, form)),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setPrice({
+            bookCents: data.bookCents,
+            shippingCents: data.shippingCents,
+            totalCents: data.totalCents,
+          });
+          setMatchedQuoteKey(buildQuoteKey(shippingLevel, form));
+        } else {
+          setPriceFetchError(
+            data.error ??
+              "Could not get a shipping quote. Try again or contact support.",
+          );
+          setMatchedQuoteKey(null);
+        }
+      } catch {
+        setPriceFetchError(
+          "Could not get a shipping quote. Try again or contact support.",
+        );
+        setMatchedQuoteKey(null);
+      } finally {
+        setPriceLoading(false);
+      }
+    })();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,7 +258,16 @@ export function CheckoutForm({
         body: JSON.stringify({
           type: "book",
           book_id: bookId,
-          shipping: form,
+          shipping: {
+            name: form.name.trim(),
+            line1: form.line1.trim(),
+            ...(form.line2.trim() ? { line2: form.line2.trim() } : {}),
+            city: form.city.trim(),
+            state: form.state.trim(),
+            postal_code: form.postal_code.trim(),
+            country: form.country,
+            phone: form.phone.trim(),
+          },
           shipping_level: shippingLevel,
         }),
       });
@@ -79,22 +284,23 @@ export function CheckoutForm({
 
   const [confirmRights, setConfirmRights] = useState(false);
   const valid =
-    form.name &&
-    form.line1 &&
-    form.city &&
-    form.state &&
-    form.postal_code &&
-    form.country &&
-    form.phone &&
-    confirmRights;
+    addressComplete &&
+    showPricing &&
+    confirmRights &&
+    !priceFetchError &&
+    !priceLoading;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h2 className="font-heading font-semibold text-foreground">Shipping address</h2>
+        <h2 className="font-heading font-semibold text-foreground">
+          Shipping address
+        </h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-foreground">Full name</label>
+            <label className="block text-sm font-medium text-foreground">
+              Full name
+            </label>
             <input
               type="text"
               required
@@ -104,12 +310,16 @@ export function CheckoutForm({
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-foreground">Address</label>
+            <label className="block text-sm font-medium text-foreground">
+              Address
+            </label>
             <input
               type="text"
               required
               value={form.line1}
-              onChange={(e) => setForm((f) => ({ ...f, line1: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, line1: e.target.value }))
+              }
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
               placeholder="Street address"
             />
@@ -118,13 +328,17 @@ export function CheckoutForm({
             <input
               type="text"
               value={form.line2}
-              onChange={(e) => setForm((f) => ({ ...f, line2: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, line2: e.target.value }))
+              }
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
               placeholder="Apt, suite, etc. (optional)"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">City</label>
+            <label className="block text-sm font-medium text-foreground">
+              City
+            </label>
             <input
               type="text"
               required
@@ -133,45 +347,82 @@ export function CheckoutForm({
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-foreground">State</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium text-foreground">
+              {form.country === "CA" ? "Province / territory" : "State"}
+            </label>
+            <select
               required
               value={form.state}
-              onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, state: e.target.value }))
+              }
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            />
+            >
+              <option value="">
+                {form.country === "CA"
+                  ? "Select province or territory"
+                  : "Select state"}
+              </option>
+              {(form.country === "CA"
+                ? CA_PROVINCE_OPTIONS
+                : US_STATE_OPTIONS
+              ).map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">Postal code</label>
+            <label className="block text-sm font-medium text-foreground">
+              Postal code
+            </label>
             <input
               type="text"
               required
               value={form.postal_code}
-              onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, postal_code: e.target.value }))
+              }
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">Country</label>
+            <label className="block text-sm font-medium text-foreground">
+              Country
+            </label>
             <select
               required
               value={form.country}
-              onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  country: e.target.value,
+                  state: "",
+                }))
+              }
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="US">United States</option>
-              <option value="CA">Canada</option>
+              {SHIPPING_COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
+                </option>
+              ))}
             </select>
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-foreground">Phone</label>
+            <label className="block text-sm font-medium text-foreground">
+              Phone
+            </label>
             <input
               type="tel"
               required
               value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, phone: e.target.value }))
+              }
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
@@ -179,10 +430,20 @@ export function CheckoutForm({
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h2 className="font-heading font-semibold text-foreground">Shipping method</h2>
+        <h2 className="font-heading font-semibold text-foreground">
+          Shipping method
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {addressComplete
+            ? "Amounts for each option appear in the order summary after we quote shipping for your address."
+            : "Enter your full shipping address to see shipping options and prices."}
+        </p>
         <div className="mt-4 space-y-2">
           {shippingOptions.map((opt) => (
-            <label key={opt.id} className="flex cursor-pointer items-center gap-4 rounded-lg border border-border p-3">
+            <label
+              key={opt.id}
+              className="flex cursor-pointer items-center gap-4 rounded-lg border border-border p-3"
+            >
               <input
                 type="radio"
                 name="shipping"
@@ -190,36 +451,70 @@ export function CheckoutForm({
                 onChange={() => handleShippingChange(opt.id)}
               />
               <span className="font-medium">{opt.label}</span>
-              <span className="text-sm text-muted-foreground">{opt.days} days</span>
-              <span className="ml-auto">${(opt.cents / 100).toFixed(2)}</span>
+              <span className="text-sm text-muted-foreground">
+                {opt.days} days
+              </span>
             </label>
           ))}
         </div>
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h2 className="font-heading font-semibold text-foreground">Order summary</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{bookTitle} · {pageCount} pages</p>
-        <dl className="mt-4 space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>${(price.subtotalCents / 100).toFixed(2)}</span>
+        <h2 className="font-heading font-bold text-foreground text-lg">
+          Order summary
+        </h2>
+        <div>
+          <p className="mt-1 text-sm font-medium text-foreground">
+            {bookTitle}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {bookSizeLabel} · {pageCount} images ({pageCount / 2} double-sided
+            pages)
+          </p>
+        </div>
+        {!addressComplete && (
+          <p className="mt-4 text-sm font-semibold text-destructive border border-destructive rounded-lg p-2">
+            Please enter your full shipping address to see book price, shipping,
+            and total.
+          </p>
+        )}
+        {addressComplete && priceLoading && (
+          <p className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Getting shipping quote…
+          </p>
+        )}
+        {priceFetchError && (
+          <div className="mt-4 space-y-2">
+            <p className="text-sm text-destructive" role="alert">
+              {priceFetchError}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchQuote()}
+              className="text-sm font-medium text-primary underline hover:no-underline"
+            >
+              Retry
+            </button>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Shipping</span>
-            <span>${(price.shippingCents / 100).toFixed(2)}</span>
-          </div>
-          {price.creditsCents > 0 && (
-            <div className="flex justify-between text-primary">
-              <span>Credits applied</span>
-              <span>-${(price.creditsCents / 100).toFixed(2)}</span>
+        )}
+        {showPricing && (
+          <dl className="mt-4 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Book</span>
+              <span>${Math.round(price.bookCents / 100)}</span>
             </div>
-          )}
-          <div className="flex justify-between border-t border-border pt-2 font-medium">
-            <span>Total</span>
-            <span>${(price.totalCents / 100).toFixed(2)}</span>
-          </div>
-        </dl>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Shipping</span>
+              <span>${Math.round(price.shippingCents / 100)}</span>
+            </div>
+            <div className="flex justify-between border-t border-border pt-2 font-medium">
+              <span>Total</span>
+              <span>${Math.round(price.totalCents / 100)}</span>
+            </div>
+          </dl>
+        )}
+
         <label className="mt-4 flex items-start gap-3">
           <input
             type="checkbox"
@@ -229,21 +524,34 @@ export function CheckoutForm({
             className="mt-1 rounded border-input"
           />
           <span className="text-sm text-muted-foreground">
-            I confirm I have the right to use these images (e.g. I own them or have permission).
+            I confirm I have the right to use these images and they are not
+            copyrighted.
           </span>
         </label>
         <p className="mt-4 text-xs text-muted-foreground">
-          Coloring books are printed on demand and customized just for you. All sales are final.
+          Note: Coloring books are printed on demand and customized just for
+          you.{" "}
+          <span className="font-semibold underline">All sales are final</span>.
         </p>
-        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+        {error && (
+          <p className="mt-2 text-sm text-destructive font-semibold border border-destructive rounded-lg p-2">
+            {error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={!valid || loading}
-          className="mt-6 w-full rounded-full bg-primary py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="mt-6 w-full rounded-lg bg-primary py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {loading ? "Redirecting to payment…" : "Pay with Stripe"}
         </button>
       </div>
+      {luluSandbox && (
+        <p className="mb-2 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-500/10 rounded-lg p-2 border border-amber-500/30 text-center">
+          Sandbox mode: this order will <span className="underline">not</span>{" "}
+          be printed or shipped.
+        </p>
+      )}
     </form>
   );
 }

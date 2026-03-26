@@ -1,19 +1,24 @@
 import { SignIn } from "@clerk/nextjs";
+import { HeaderLogo } from "@/components/header-logo";
+import Link from "next/link";
+import { ArrowLeftIcon } from "lucide-react";
 
 export default function SignInPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md">
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
+      <Link
+        href="/"
+        className="flex flex-row items-center gap-2 absolute top-4 left-4"
+      >
+        <ArrowLeftIcon className="w-4 h-4" /> Back to Home
+      </Link>
+      <div className="flex flex-col items-center justify-center w-full max-w-md">
+        <HeaderLogo href="/sign-in" className="mb-4" />
         <SignIn
           appearance={{
             elements: {
               rootBox: "mx-auto",
               card: "shadow-lg rounded-2xl border border-border",
-            },
-            variables: {
-              colorPrimary: "hsl(0, 100%, 71%)",
-              colorBackground: "hsl(40, 100%, 97%)",
-              borderRadius: "0.75rem",
             },
           }}
           fallbackRedirectUrl="/dashboard"

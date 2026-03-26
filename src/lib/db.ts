@@ -14,10 +14,8 @@ export async function getOrCreateUserProfile(userId: string) {
     .from("user_profiles")
     .insert({
       user_id: userId,
-      free_conversions_remaining: 5,
-      credits_single: 0,
-      credits_pack_50: 0,
-      credits_pack_100: 0,
+      free_conversions_remaining: 3,
+      paid_credits: 0,
     })
     .select()
     .single();

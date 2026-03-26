@@ -78,7 +78,11 @@ export async function POST(request: Request) {
   if (existing) {
     await supabase
       .from("covers")
-      .update({ image_path: path })
+      .update({
+        image_path: path,
+        crop_rect: null,
+        rotation_degrees: null,
+      })
       .eq("id", existing.id);
   } else {
     await supabase.from("covers").insert({ book_id: bookId, image_path: path });

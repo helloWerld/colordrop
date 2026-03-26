@@ -45,7 +45,7 @@ export async function sendOrderConfirmation(params: {
         <h1 style="color: #FF6B6B;">Your book is on its way!</h1>
         <p>Order <strong>#${orderShortId}</strong> is confirmed.</p>
         <p><strong>${bookTitle}</strong> · ${pageCount} pages</p>
-        <p>Amount paid: <strong>$${(amountTotalCents / 100).toFixed(2)}</strong></p>
+        <p>Amount paid: <strong>$${Math.round(amountTotalCents / 100)}</strong></p>
         <p>We'll email you tracking info when your book ships.</p>
         <p style="color: #666; font-size: 14px;">Coloring books are printed on demand and customized just for you. All sales are final.</p>
       </div>

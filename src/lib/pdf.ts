@@ -1,13 +1,25 @@
 /**
  * PDF generation for ColorDrop: interior (coloring pages) and cover.
- * Interior: 8.5" x 8.5" (612 x 612 pt), one page per outline image at 300 DPI equivalent.
+ * Interior: trim-size aware; one PDF page per outline image; supports crop and rotation per page.
  * Cover: dimensions from Lulu API, single page.
  */
 
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getProductByTrimCode } from "@/lib/book-products";
 
-const TRIM_POINTS = 612; // 8.5" at 72 pt/in
+const LEGACY_TRIM_POINTS = 612; // 8.5" at 72 pt/in for legacy books
+
+export type PageRow = {
+  outline_image_path: string;
+  crop_rect?: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  } | null;
+  rotation_degrees?: number | null;
+};
 
 /**
  * Download file from Supabase storage and return bytes.
@@ -15,34 +27,73 @@ const TRIM_POINTS = 612; // 8.5" at 72 pt/in
 async function downloadStorageBytes(
   supabase: SupabaseClient,
   bucket: string,
-  path: string
+  path: string,
 ): Promise<Uint8Array> {
   const { data, error } = await supabase.storage.from(bucket).download(path);
   if (error || !data) {
-    throw new Error(`Failed to download ${bucket}/${path}: ${error?.message ?? "no data"}`);
+    throw new Error(
+      `Failed to download ${bucket}/${path}: ${error?.message ?? "no data"}`,
+    );
   }
   return new Uint8Array(await data.arrayBuffer());
 }
 
 /**
  * Generate interior PDF from book outline pages (in order).
- * Page size: 8.5" x 8.5" (612 x 612 pt). One PDF page per outline image.
+ * Page size from trim code (Pocket / Medium / Large); one PDF page per outline image.
+ * Applies crop_rect (normalized 0-1) and rotation_degrees per page when set.
  */
 export async function generateInteriorPdf(
   supabase: SupabaseClient,
-  outlinePaths: string[]
+  pageRows: PageRow[],
+  trimCode: string,
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
+  const product = getProductByTrimCode(trimCode);
+  const widthPoints = product?.widthPoints ?? LEGACY_TRIM_POINTS;
+  const heightPoints = product?.heightPoints ?? LEGACY_TRIM_POINTS;
 
-  for (const path of outlinePaths) {
+  for (const row of pageRows) {
+    const path = row.outline_image_path;
     const imageBytes = await downloadStorageBytes(supabase, "outlines", path);
-    const page = doc.addPage([TRIM_POINTS, TRIM_POINTS]);
+    const page = doc.addPage([widthPoints, heightPoints]);
     const png = await doc.embedPng(imageBytes);
+    const imgW = png.width;
+    const imgH = png.height;
+
+    const crop = row.crop_rect;
+    const rotation = row.rotation_degrees ?? 0;
+    const cx = crop?.x ?? 0;
+    const cy = crop?.y ?? 0;
+    const cw = crop?.width ?? 1;
+    const ch = crop?.height ?? 1;
+
+    let drawWidth: number;
+    let drawHeight: number;
+    let drawX: number;
+    let drawY: number;
+
+    if (cw < 1 || ch < 1 || cx > 0 || cy > 0) {
+      const scaleX = widthPoints / (cw * imgW);
+      const scaleY = heightPoints / (ch * imgH);
+      const scale = Math.max(scaleX, scaleY);
+      drawWidth = imgW * scale;
+      drawHeight = imgH * scale;
+      drawX = -cx * imgW * scale;
+      drawY = -cy * imgH * scale;
+    } else {
+      drawWidth = widthPoints;
+      drawHeight = heightPoints;
+      drawX = 0;
+      drawY = 0;
+    }
+
     page.drawImage(png, {
-      x: 0,
-      y: 0,
-      width: TRIM_POINTS,
-      height: TRIM_POINTS,
+      x: drawX,
+      y: drawY,
+      width: drawWidth,
+      height: drawHeight,
+      rotate: degrees(rotation),
     });
   }
 
@@ -53,16 +104,40 @@ export async function generateInteriorPdf(
  * Generate cover PDF from cover image. Dimensions in points (1/72 inch).
  * Lulu expects a single-page PDF; back cover is blank for MVP.
  * Supports JPEG and PNG (cover uploads use jpg/png/webp; webp not embedded by pdf-lib).
+ * Applies crop_rect (normalized 0-1) and rotation_degrees when provided (same order as interior: crop then rotate).
  */
 export async function generateCoverPdf(
   supabase: SupabaseClient,
   coverImagePath: string,
   widthPoints: number,
-  heightPoints: number
+  heightPoints: number,
+  trimCode: string,
+  crop_rect?: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  } | null,
+  rotation_degrees?: number | null,
 ): Promise<Uint8Array> {
-  const imageBytes = await downloadStorageBytes(supabase, "covers", coverImagePath);
+  const imageBytes = await downloadStorageBytes(
+    supabase,
+    "covers",
+    coverImagePath,
+  );
   const doc = await PDFDocument.create();
   const page = doc.addPage([widthPoints, heightPoints]);
+  const product = getProductByTrimCode(trimCode);
+  const trimWidthPoints = product?.widthPoints ?? LEGACY_TRIM_POINTS;
+  const trimHeightPoints = product?.heightPoints ?? LEGACY_TRIM_POINTS;
+  const frontAspect = Math.min(trimWidthPoints / trimHeightPoints, 1);
+  const frontWidthPoints = heightPoints * frontAspect;
+  const spineWidthPoints = Math.max(0, widthPoints - 2 * frontWidthPoints);
+  // Lulu wrap order: back | spine | front
+  const frontX = frontWidthPoints + spineWidthPoints;
+  const frontY = 0;
+  const panelWidthPoints = frontWidthPoints;
+  const panelHeightPoints = heightPoints;
   const isJpeg =
     coverImagePath.toLowerCase().endsWith(".jpg") ||
     coverImagePath.toLowerCase().endsWith(".jpeg") ||
@@ -70,11 +145,42 @@ export async function generateCoverPdf(
   const image = isJpeg
     ? await doc.embedJpg(imageBytes)
     : await doc.embedPng(imageBytes);
+  const imgW = image.width;
+  const imgH = image.height;
+
+  const crop = crop_rect;
+  const rotation = rotation_degrees ?? 0;
+  const cx = crop?.x ?? 0;
+  const cy = crop?.y ?? 0;
+  const cw = crop?.width ?? 1;
+  const ch = crop?.height ?? 1;
+
+  let drawWidth: number;
+  let drawHeight: number;
+  let drawX: number;
+  let drawY: number;
+
+  if (cw < 1 || ch < 1 || cx > 0 || cy > 0) {
+    const scaleX = panelWidthPoints / (cw * imgW);
+    const scaleY = panelHeightPoints / (ch * imgH);
+    const scale = Math.max(scaleX, scaleY);
+    drawWidth = imgW * scale;
+    drawHeight = imgH * scale;
+    drawX = frontX + -cx * imgW * scale;
+    drawY = frontY + -cy * imgH * scale;
+  } else {
+    drawWidth = panelWidthPoints;
+    drawHeight = panelHeightPoints;
+    drawX = frontX;
+    drawY = frontY;
+  }
+
   page.drawImage(image, {
-    x: 0,
-    y: 0,
-    width: widthPoints,
-    height: heightPoints,
+    x: drawX,
+    y: drawY,
+    width: drawWidth,
+    height: drawHeight,
+    rotate: degrees(rotation),
   });
   return doc.save();
 }

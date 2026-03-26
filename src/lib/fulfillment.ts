@@ -6,18 +6,29 @@
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { generateInteriorPdf, generateCoverPdf } from "@/lib/pdf";
 import { getCoverDimensions, createPrintJob } from "@/lib/lulu";
+import {
+  getPodPackageId,
+  getTrimSizeIdFromCode,
+} from "@/lib/book-products";
 
-const CONTACT_EMAIL = process.env.LULU_CONTACT_EMAIL ?? process.env.RESEND_FROM_EMAIL ?? "orders@colordrop.ai";
+const CONTACT_EMAIL =
+  process.env.LULU_CONTACT_EMAIL ??
+  process.env.RESEND_FROM_EMAIL ??
+  "orders@colordrop.ai";
 
-export type FulfillmentResult = { ok: true; luluPrintJobId: number } | { ok: false; error: string };
+export type FulfillmentResult =
+  | { ok: true; luluPrintJobId: number }
+  | { ok: false; error: string };
 
-export async function runFulfillment(orderId: string): Promise<FulfillmentResult> {
+export async function runFulfillment(
+  orderId: string,
+): Promise<FulfillmentResult> {
   const supabase = createServerSupabaseClient();
 
   const { data: order, error: orderErr } = await supabase
     .from("orders")
     .select(
-      "id, book_id, status, interior_pdf_path, cover_pdf_path, lulu_print_job_id, shipping_name, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, shipping_level"
+      "id, book_id, status, interior_pdf_path, cover_pdf_path, lulu_print_job_id, shipping_name, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, shipping_level",
     )
     .eq("id", orderId)
     .single();
@@ -36,7 +47,7 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
 
   const { data: book } = await supabase
     .from("books")
-    .select("id, title, page_count")
+    .select("id, title, page_count, page_tier, trim_size")
     .eq("id", order.book_id)
     .single();
   if (!book) {
@@ -46,18 +57,18 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
 
   const { data: pages } = await supabase
     .from("pages")
-    .select("outline_image_path")
+    .select("outline_image_path, crop_rect, rotation_degrees")
     .eq("book_id", order.book_id)
     .order("position", { ascending: true });
-  const outlinePaths = (pages ?? []).map((p) => p.outline_image_path).filter(Boolean);
-  if (outlinePaths.length < 2) {
+  const pageRows = (pages ?? []).filter((p) => p.outline_image_path);
+  if (pageRows.length < 2) {
     await setOrderError(supabase, orderId, "Book has fewer than 2 pages");
     return { ok: false, error: "Book has fewer than 2 pages" };
   }
 
   const { data: cover } = await supabase
     .from("covers")
-    .select("image_path")
+    .select("image_path, crop_rect, rotation_degrees")
     .eq("book_id", order.book_id)
     .single();
   if (!cover?.image_path) {
@@ -65,17 +76,60 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
     return { ok: false, error: "Cover not found" };
   }
 
+  const interiorPageCount = pageRows.length;
+  const trimCode = book.trim_size ?? "";
+  const trimSizeId = getTrimSizeIdFromCode(trimCode);
+  if (!trimSizeId) {
+    await setOrderError(
+      supabase,
+      orderId,
+      "Book trim size is missing or not supported for printing",
+    );
+    return { ok: false, error: "Invalid trim size for print" };
+  }
+  const dbPageCount = book.page_count ?? 0;
+  if (interiorPageCount !== dbPageCount) {
+    await setOrderError(
+      supabase,
+      orderId,
+      `Interior page count (${interiorPageCount}) does not match book.page_count (${dbPageCount})`,
+    );
+    return { ok: false, error: "Page count mismatch" };
+  }
+  const pageTier = book.page_tier ?? dbPageCount;
+  if (interiorPageCount !== pageTier) {
+    await setOrderError(
+      supabase,
+      orderId,
+      `Interior page count (${interiorPageCount}) does not match book.page_tier (${pageTier})`,
+    );
+    return { ok: false, error: "Page tier mismatch" };
+  }
+
+  const podPackageId = getPodPackageId(trimSizeId, interiorPageCount);
+
   let interiorPath: string;
   let coverPdfPath: string;
 
   try {
-    const interiorPdfBytes = await generateInteriorPdf(supabase, outlinePaths);
+    const interiorPdfBytes = await generateInteriorPdf(
+      supabase,
+      pageRows,
+      trimCode,
+    );
     interiorPath = `orders/${orderId}/interior.pdf`;
     const { error: up1 } = await supabase.storage
       .from("pdfs")
-      .upload(interiorPath, interiorPdfBytes, { contentType: "application/pdf", upsert: true });
+      .upload(interiorPath, interiorPdfBytes, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
     if (up1) {
-      await setOrderError(supabase, orderId, `Interior PDF upload: ${up1.message}`);
+      await setOrderError(
+        supabase,
+        orderId,
+        `Interior PDF upload: ${up1.message}`,
+      );
       return { ok: false, error: up1.message };
     }
   } catch (e) {
@@ -85,19 +139,29 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
   }
 
   try {
-    const dimensions = await getCoverDimensions(outlinePaths.length);
+    const dimensions = await getCoverDimensions(pageRows.length, podPackageId);
     const coverPdfBytes = await generateCoverPdf(
       supabase,
       cover.image_path,
       dimensions.widthPoints,
-      dimensions.heightPoints
+      dimensions.heightPoints,
+      trimCode,
+      cover.crop_rect ?? undefined,
+      cover.rotation_degrees ?? undefined,
     );
     coverPdfPath = `orders/${orderId}/cover.pdf`;
     const { error: up2 } = await supabase.storage
       .from("pdfs")
-      .upload(coverPdfPath, coverPdfBytes, { contentType: "application/pdf", upsert: true });
+      .upload(coverPdfPath, coverPdfBytes, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
     if (up2) {
-      await setOrderError(supabase, orderId, `Cover PDF upload: ${up2.message}`);
+      await setOrderError(
+        supabase,
+        orderId,
+        `Cover PDF upload: ${up2.message}`,
+      );
       return { ok: false, error: up2.message };
     }
   } catch (e) {
@@ -122,7 +186,11 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
     .from("pdfs")
     .createSignedUrl(coverPdfPath, 3600);
   if (!interiorSigned.data?.signedUrl || !coverSigned.data?.signedUrl) {
-    await setOrderError(supabase, orderId, "Could not create signed URLs for Lulu");
+    await setOrderError(
+      supabase,
+      orderId,
+      "Could not create signed URLs for Lulu",
+    );
     return { ok: false, error: "Signed URLs failed" };
   }
 
@@ -133,6 +201,7 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
       title: book.title ?? "My Coloring Book",
       interiorPdfUrl: interiorSigned.data.signedUrl,
       coverPdfUrl: coverSigned.data.signedUrl,
+      podPackageId,
       shippingAddress: {
         name: order.shipping_name ?? "",
         street1: order.shipping_address_line1 ?? "",
@@ -143,7 +212,9 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
         postcode: order.shipping_postal_code ?? "",
         phone_number: order.shipping_phone ?? "",
       },
-      shippingLevel: (order.shipping_level as "MAIL" | "PRIORITY_MAIL" | "EXPEDITED") ?? "MAIL",
+      shippingLevel:
+        (order.shipping_level as "MAIL" | "PRIORITY_MAIL" | "EXPEDITED") ??
+        "MAIL",
       quantity: 1,
     });
 
@@ -168,7 +239,7 @@ export async function runFulfillment(orderId: string): Promise<FulfillmentResult
 async function setOrderError(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   orderId: string,
-  errorMessage: string
+  errorMessage: string,
 ): Promise<void> {
   await supabase
     .from("orders")

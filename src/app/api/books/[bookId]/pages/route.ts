@@ -15,7 +15,7 @@ export async function POST(
   const supabase = createServerSupabaseClient();
   const { data: book, error: bookErr } = await supabase
     .from("books")
-    .select("id")
+    .select("id, page_tier")
     .eq("id", bookId)
     .eq("user_id", userId)
     .single();
@@ -23,6 +23,8 @@ export async function POST(
   if (bookErr || !book) {
     return NextResponse.json({ error: "Book not found" }, { status: 404 });
   }
+
+  const maxPages = book.page_tier ?? 128;
 
   let body: { saved_conversion_id?: string };
   try {
@@ -46,9 +48,9 @@ export async function POST(
       .select("id", { count: "exact", head: true })
       .eq("book_id", bookId);
     const position = (count ?? 0) + 1;
-    if (position > 50) {
+    if (position > maxPages) {
       return NextResponse.json(
-        { error: "Book has maximum 50 pages. Remove a page to add another." },
+        { error: `This book has a maximum of ${maxPages} pages (${maxPages} images). Remove a page to add another.` },
         { status: 400 }
       );
     }
