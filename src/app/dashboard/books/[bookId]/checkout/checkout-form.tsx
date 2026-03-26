@@ -9,7 +9,6 @@ import {
 } from "@/lib/shipping-regions";
 import { shippingAddressSchema } from "@/lib/validators";
 import { Loader2 } from "lucide-react";
-import Image from "next/image";
 
 type ShippingOption = {
   id: ShippingLevelId;
