@@ -4,6 +4,10 @@ import { createServerSupabaseClient } from "@/lib/supabase";
 import { SHIPPING_LEVELS } from "@/lib/pricing";
 import { getProductByTrimCode } from "@/lib/book-products";
 import { isLuluSandbox } from "@/lib/lulu";
+import {
+  DUPLICATE_BOOK_CHECKOUT_ERROR,
+  isBookEligibleForCheckout,
+} from "@/lib/book-checkout-eligibility";
 import { CheckoutForm } from "./checkout-form";
 
 export default async function CheckoutPage({
@@ -18,7 +22,7 @@ export default async function CheckoutPage({
   const supabase = createServerSupabaseClient();
   const { data: book, error: bookError } = await supabase
     .from("books")
-    .select("id, title, page_count, trim_size, page_tier")
+    .select("id, title, page_count, trim_size, page_tier, status")
     .eq("id", bookId)
     .eq("user_id", userId)
     .single();
@@ -30,6 +34,54 @@ export default async function CheckoutPage({
         <Link href="/dashboard" className="text-primary hover:underline">
           ← Dashboard
         </Link>
+      </div>
+    );
+  }
+
+  const { data: orderForBook } = await supabase
+    .from("orders")
+    .select("id, status")
+    .eq("book_id", bookId)
+    .limit(1)
+    .maybeSingle();
+
+  const checkoutEligible = isBookEligibleForCheckout(
+    book.status,
+    orderForBook ?? undefined,
+  );
+
+  if (!checkoutEligible) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <Link
+            href={`/dashboard/books/${bookId}/preview`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            ← Preview
+          </Link>
+          <h1 className="mt-2 font-heading text-2xl font-bold text-foreground">
+            Checkout
+          </h1>
+        </div>
+        <div
+          className="rounded-2xl border border-border bg-card p-6 text-sm"
+          role="alert"
+        >
+          <p className="font-medium text-foreground">
+            {DUPLICATE_BOOK_CHECKOUT_ERROR}
+          </p>
+          {orderForBook ? (
+            <p className="mt-4">
+              <Link
+                href={`/dashboard/orders/${orderForBook.id}`}
+                className="font-medium text-primary hover:underline"
+              >
+                View your order
+              </Link>
+            </p>
+          ) : null}
+        </div>
       </div>
     );
   }

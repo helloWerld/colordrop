@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase";
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ orderId: string }> }
+  { params }: { params: Promise<{ orderId: string }> },
 ) {
   const { userId } = await auth();
   if (!userId) {
@@ -15,13 +15,13 @@ export async function GET(
   const supabase = createServerSupabaseClient();
   const { data: order, error } = await supabase
     .from("orders")
-    .select(`
+    .select(
+      `
       id,
       book_id,
       amount_total,
       status,
       created_at,
-      credits_applied_value_cents,
       shipping_name,
       shipping_address_line1,
       shipping_city,
@@ -31,7 +31,8 @@ export async function GET(
       shipping_level,
       lulu_tracking_id,
       lulu_tracking_url
-    `)
+    `,
+    )
     .eq("id", orderId)
     .eq("user_id", userId)
     .single();

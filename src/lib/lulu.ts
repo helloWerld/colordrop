@@ -88,6 +88,26 @@ export function getLuluCredentialDiagnostics(): LuluCredentialDiagnostics {
   };
 }
 
+/** Base URL for Lulu developer dashboard (mode-aware). */
+export function getLuluDashboardBaseUrl(): string {
+  return isLuluSandbox()
+    ? "https://developers.sandbox.lulu.com"
+    : "https://developers.lulu.com";
+}
+
+/**
+ * Deep link to a print job in Lulu dashboard.
+ * Uses active mode (sandbox/production) from current env credentials.
+ */
+export function luluDashboardPrintJobLink(
+  printJobId: number | string | null | undefined,
+): string | null {
+  if (printJobId == null) return null;
+  const value = String(printJobId).trim();
+  if (!value) return null;
+  return `${getLuluDashboardBaseUrl()}/print-jobs/detail/${encodeURIComponent(value)}`;
+}
+
 type CachedToken = { access_token: string; expires_at: number };
 const cachedTokenByMode: { prod: CachedToken | null; sandbox: CachedToken | null } = {
   prod: null,
@@ -182,6 +202,16 @@ async function getAccessToken(): Promise<string> {
   };
   cachedTokenByMode[cacheKey] = token;
   return data.access_token;
+}
+
+export async function luluHealthCheck(): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await getAccessToken();
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: message };
+  }
 }
 
 export type CoverDimensions = { widthPoints: number; heightPoints: number };

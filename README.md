@@ -11,18 +11,29 @@ Turn your photos into custom printed coloring books. See [PRD.md](PRD.md) for fu
 
 ## Stack
 
-Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui, Clerk, Supabase, Gemini (Nano Banana) + Replicate fallback for image conversion, Stripe, Lulu.
+Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui, Clerk, Supabase, Gemini (Nano Banana) + OpenAI fallback for image conversion, Stripe, Lulu.
 
 ## Setup
 
-1. Copy `.env.example` to `.env.local` and fill in keys (Clerk, Supabase, GEMINI_API_KEY and/or REPLICATE_API_TOKEN for conversion, Stripe, etc.).
+1. Copy `.env.example` to `.env.local` and fill in keys (Clerk, Supabase, GEMINI_API_KEY and/or OPENAI_API_KEY for conversion, Stripe, etc.).
 2. Add `DATABASE_URL` to `.env.local`: in Supabase Dashboard → **Settings → Database**, under **Connection string** choose **Use connection pooling**, then copy the **URI** (host should be `aws-0-<region>.pooler.supabase.com`, port 6543). Do not use the direct `db.*.supabase.co` URI—it can fail with ENOTFOUND.
 3. Run migrations: `npm run db:migrate` (applies `supabase/migrations/*.sql`).
-3. Create Supabase Storage buckets: `originals`, `outlines`, `covers`, `pdfs`.
-4. **Stripe:** Set `NEXT_PUBLIC_APP_URL` to your app origin (Checkout success/cancel URLs depend on it). You can keep **live** keys in `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` and **test** keys in `STRIPE_SANDBOX_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_SANDBOX_PUBLISHABLE_KEY` / `STRIPE_SANDBOX_WEBHOOK_SECRET`, then toggle `STRIPE_USE_SANDBOX=true` (same idea as `LULU_USE_SANDBOX`) to switch modes; restart the dev server after changing. When sandbox is off, the app uses the live env vars; webhook signature verification must use the matching signing secret (`STRIPE_WEBHOOK_SECRET` vs `STRIPE_SANDBOX_WEBHOOK_SECRET`). For **local webhooks**, run [Stripe CLI](https://stripe.com/docs/stripe-cli) `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and paste the printed `whsec_…` into the secret for the mode you are using (it changes when you restart `listen`). If you do not use separate sandbox vars, leave `STRIPE_USE_SANDBOX` unset or `false` and use test keys only in `STRIPE_SECRET_KEY` until production. The dashboard **Stripe test mode** banner shows when `STRIPE_USE_SANDBOX=true` or when legacy key-prefix detection applies (`sk_test_` / `pk_test_`). Use [Stripe test cards](https://stripe.com/docs/testing#cards) (e.g. `4242 4242 4242 4242`) in test mode.
-5. **Book pricing:** Prices are computed from Lulu's cost API plus configurable markups on print+fulfillment (`BOOK_MARKUP_PERCENT`) and on shipping (`SHIPPING_MARKUP_PERCENT`), each defaulting to `50` (50% markup on that portion of Lulu cost). Changing them requires an app restart. Optional: `LULU_COST_CALC_*` env vars override the representative US address used only for cost caching (see `.env.example`).
+4. Create Supabase Storage buckets: `originals`, `outlines`, `covers`, `pdfs`.
+5. **Stripe:** Set `NEXT_PUBLIC_APP_URL` to your app origin (Checkout success/cancel URLs depend on it). You can keep **live** keys in `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` and **test** keys in `STRIPE_SANDBOX_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_SANDBOX_PUBLISHABLE_KEY` / `STRIPE_SANDBOX_WEBHOOK_SECRET`, then toggle `STRIPE_USE_SANDBOX=true` (same idea as `LULU_USE_SANDBOX`) to switch modes; restart the dev server after changing. When sandbox is off, the app uses the live env vars; webhook signature verification must use the matching signing secret (`STRIPE_WEBHOOK_SECRET` vs `STRIPE_SANDBOX_WEBHOOK_SECRET`). For **local webhooks**, run [Stripe CLI](https://stripe.com/docs/stripe-cli) `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and paste the printed `whsec_…` into the secret for the mode you are using (it changes when you restart `listen`). If you do not use separate sandbox vars, leave `STRIPE_USE_SANDBOX` unset or `false` and use test keys only in `STRIPE_SECRET_KEY` until production. The dashboard **Stripe test mode** banner shows when `STRIPE_USE_SANDBOX=true` or when legacy key-prefix detection applies (`sk_test_` / `pk_test_`). Use [Stripe test cards](https://stripe.com/docs/testing#cards) (e.g. `4242 4242 4242 4242`) in test mode.
+6. **Book pricing:** Prices are computed from Lulu's cost API plus configurable markups on print+fulfillment (`BOOK_MARKUP_PERCENT`) and on shipping (`SHIPPING_MARKUP_PERCENT`), each defaulting to `50` (50% markup on that portion of Lulu cost). Changing them requires an app restart. Optional: `LULU_COST_CALC_*` env vars override the representative US address used only for cost caching (see `.env.example`).
 
-6. **Lulu sandbox (testing):** To test the book checkout flow without placing real print jobs, use Lulu's sandbox. Create a separate account at [developers.sandbox.lulu.com](https://developers.sandbox.lulu.com/), generate API keys there, then set `LULU_USE_SANDBOX=true`, `LULU_SANDBOX_CLIENT_KEY`, `LULU_SANDBOX_CLIENT_SECRET`, and `LULU_SANDBOX_API_BASE_URL=https://api.sandbox.lulu.com` in `.env.local`. Restart the app to switch between sandbox and production. When sandbox credentials are active, the app shows a clear banner and book orders will not be printed or shipped. If `LULU_USE_SANDBOX=true` but sandbox keys are missing, the app uses production Lulu when `LULU_CLIENT_KEY` / `LULU_CLIENT_SECRET` are set (check the server log for a one-time notice).
+7. **Lulu sandbox (testing):** To test the book checkout flow without placing real print jobs, use Lulu's sandbox. Create a separate account at [developers.sandbox.lulu.com](https://developers.sandbox.lulu.com/), generate API keys there, then set `LULU_USE_SANDBOX=true`, `LULU_SANDBOX_CLIENT_KEY`, `LULU_SANDBOX_CLIENT_SECRET`, and `LULU_SANDBOX_API_BASE_URL=https://api.sandbox.lulu.com` in `.env.local`. Restart the app to switch between sandbox and production. When sandbox credentials are active, the app shows a clear banner and book orders will not be printed or shipped. If `LULU_USE_SANDBOX=true` but sandbox keys are missing, the app uses production Lulu when `LULU_CLIENT_KEY` / `LULU_CLIENT_SECRET` are set (check the server log for a one-time notice).
+
+## Production launch checklist (ops)
+
+- **Stripe Tax**: configured for **US + CA** where required
+- **Sandbox flags**: `STRIPE_USE_SANDBOX=false` and `LULU_USE_SANDBOX=false` (or unset) for production
+- **Webhook secrets**:
+  - Stripe: `STRIPE_WEBHOOK_SECRET` (or `STRIPE_SANDBOX_WEBHOOK_SECRET` if using sandbox mode)
+  - Lulu: `LULU_WEBHOOK_SECRET`
+- **Cron auth**: `CRON_SECRET` set (required for `GET /api/cron/cleanup-originals` in production)
+- **Site URL**: `NEXT_PUBLIC_APP_URL` matches the deployed origin
+- **Health**: `GET /api/health` returns **200** (and reports expected Stripe/Lulu modes)
 
 ## Troubleshooting
 
@@ -30,7 +41,7 @@ Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui, Clerk, Supabase, Gemin
 
 - **Upload returns 500 or "Bucket not found"** — Create the required Storage buckets in Supabase Dashboard: **Storage** → **New bucket** → create `originals`, `outlines`, `covers`, and `pdfs` (public or with policies that allow your app to read/write). Or run `npm run storage:create-buckets`.
 
-- **"Conversion failed" when adding a page or converting a photo** — Image conversion uses Gemini (Nano Banana) first, then Replicate as fallback. Set `GEMINI_API_KEY` in `.env.local` (from [Google AI Studio](https://aistudio.google.com/apikey)) and/or `REPLICATE_API_TOKEN` (from [replicate.com](https://replicate.com)). Check the terminal running `npm run dev` for the exact error (e.g. invalid token, rate limit, or model unavailable).
+- **"Conversion failed" when adding a page or converting a photo** — Image conversion uses Gemini (Nano Banana) first, then OpenAI as fallback. Set `GEMINI_API_KEY` in `.env.local` (from [Google AI Studio](https://aistudio.google.com/apikey)) and/or `OPENAI_API_KEY` (from [OpenAI](https://platform.openai.com/api-keys)). In production, `OPENAI_API_KEY` is required so fallback is always available. Check the terminal running `npm run dev` for the exact error (e.g. invalid key or provider outage).
 
 ## Getting Started
 

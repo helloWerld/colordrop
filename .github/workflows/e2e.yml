@@ -1,0 +1,55 @@
+name: E2E (Playwright)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-e2e') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Next.js app
+        run: npm run build
+
+      - name: Start Next.js app
+        run: npm run start -- --port 3000 &
+
+      - name: Wait for server
+        run: |
+          for i in {1..60}; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "${PLAYWRIGHT_BASE_URL}/api/health" || true)"
+            if [ "$code" != "000" ]; then
+              echo "Server is responding (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not respond in time"
+          exit 1
+
+      - name: Run Playwright tests
+        run: npm run test:e2e

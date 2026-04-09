@@ -8,6 +8,14 @@ import {
   TRIM_SIZES,
 } from "@/lib/book-products";
 import { getCachedMarketingBookPriceMatrix } from "@/lib/marketing-book-prices";
+import { marketingPageMetadata } from "@/lib/marketing-metadata";
+
+export const metadata = marketingPageMetadata({
+  title: "Pricing",
+  description:
+    "ColorDrop pricing: credits for AI photo-to-coloring-page conversion, book print options, and shipping. Compare credit packs and printed book sizes.",
+  canonicalPath: "/pricing",
+});
 
 const CREDIT_PACKS = [
   {
@@ -71,7 +79,9 @@ export default async function PricingPage() {
       <p className="mt-4 max-w-2xl text-muted-foreground">
         One credit equals one photo converted into a coloring page. New accounts
         get 3 free credits—no card required. Buy more credits in the packages
-        below when you need them.
+        below when you need them. Credits are for conversions only; printed
+        books are priced separately (printing + shipping at checkout). We ship
+        printed books to the United States and Canada only.
       </p>
 
       <h2 className="font-heading mt-12 text-xl font-semibold text-foreground">
@@ -127,6 +137,7 @@ export default async function PricingPage() {
         <p className="mt-3 text-muted-foreground">
           Each page = one image. Books are printed double-sided. Book price
           depends on size and page count; shipping is calculated at checkout.
+          Shipping is available to US and Canadian addresses only.
         </p>
         {bookPricesError ? (
           <p

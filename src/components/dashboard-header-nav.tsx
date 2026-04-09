@@ -21,14 +21,17 @@ const linkClass =
 
 type DashboardHeaderNavProps = {
   showLuluDev: boolean;
+  userEmail?: string | null;
 };
 
-export function DashboardHeaderNav({ showLuluDev }: DashboardHeaderNavProps) {
+export function DashboardHeaderNav({
+  showLuluDev,
+  userEmail,
+}: DashboardHeaderNavProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const panelId = useId();
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
-
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -89,6 +92,11 @@ export function DashboardHeaderNav({ showLuluDev }: DashboardHeaderNavProps) {
             >
               <X className="h-5 w-5" aria-hidden />
             </button>
+          </div>
+          <div className="border-b border-border/40 px-4 py-3">
+            <p className="truncate text-sm text-muted-foreground">
+              {userEmail ?? "No email available"}
+            </p>
           </div>
           <nav
             className="flex flex-1 flex-col overflow-y-auto px-4 pb-6 pt-2"

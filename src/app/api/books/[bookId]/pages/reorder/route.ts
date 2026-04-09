@@ -1,10 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
+import {
+  BOOK_LOCKED_FOR_EDITING_ERROR,
+  isBookLockedForEditing,
+} from "@/lib/print-snapshot";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ bookId: string }> }
+  { params }: { params: Promise<{ bookId: string }> },
 ) {
   const { userId } = await auth();
   if (!userId) {
@@ -22,7 +26,7 @@ export async function PATCH(
   if (!Array.isArray(pageIds) || pageIds.length === 0) {
     return NextResponse.json(
       { error: "pageIds must be a non-empty array" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -35,6 +39,13 @@ export async function PATCH(
     .single();
   if (!book) {
     return NextResponse.json({ error: "Book not found" }, { status: 404 });
+  }
+
+  if (await isBookLockedForEditing(supabase, bookId)) {
+    return NextResponse.json(
+      { error: BOOK_LOCKED_FOR_EDITING_ERROR },
+      { status: 409 },
+    );
   }
 
   for (let i = 0; i < pageIds.length; i++) {

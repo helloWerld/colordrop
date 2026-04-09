@@ -10,6 +10,8 @@ export interface DiffProps {
   afterAlt?: string;
   beforeLabel?: string;
   afterLabel?: string;
+  /** Default eager; use `lazy` for below-the-fold gallery items. */
+  imageLoading?: "eager" | "lazy";
   defaultPosition?: number;
   className?: string;
 }
@@ -21,6 +23,7 @@ export function Diff({
   afterAlt = "After",
   beforeLabel,
   afterLabel,
+  imageLoading = "eager",
   defaultPosition = 0.5,
   className,
 }: DiffProps) {
@@ -106,6 +109,8 @@ export function Diff({
         <img
           src={afterSrc}
           alt={afterAlt}
+          loading={imageLoading}
+          decoding={imageLoading === "lazy" ? "async" : "auto"}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"
           draggable={false}
         />
@@ -121,6 +126,8 @@ export function Diff({
         <img
           src={beforeSrc}
           alt={beforeAlt}
+          loading={imageLoading}
+          decoding={imageLoading === "lazy" ? "async" : "auto"}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"
           draggable={false}
         />

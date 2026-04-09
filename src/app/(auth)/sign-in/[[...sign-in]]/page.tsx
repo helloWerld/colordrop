@@ -2,6 +2,14 @@ import { SignIn } from "@clerk/nextjs";
 import { HeaderLogo } from "@/components/header-logo";
 import Link from "next/link";
 import { ArrowLeftIcon } from "lucide-react";
+import { marketingPageMetadata } from "@/lib/marketing-metadata";
+
+export const metadata = marketingPageMetadata({
+  title: "Sign in",
+  description:
+    "Sign in to ColorDrop to create coloring books from your photos, manage orders, and access your library.",
+  canonicalPath: "/sign-in",
+});
 
 export default function SignInPage() {
   return (

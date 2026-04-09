@@ -1,33 +1,45 @@
 /**
- * Conversion orchestrator: Nano Banana (Gemini) primary, Replicate fallback only.
+ * Conversion orchestrator: Gemini primary, OpenAI fallback.
  */
 
-import { runLineartConversion as runGeminiConversion } from "@/lib/gemini";
-import { runLineartWithRetry } from "@/lib/replicate";
+import { runLineartConversionWithMetadata as runGeminiConversion } from "@/lib/gemini";
+import { runLineartOpenAIFallback } from "@/lib/openai-fallback";
 
-export async function runLineartWithFallback(imageUrl: string): Promise<string> {
+export type ConversionProvider = "gemini" | "openai";
+
+export type LineartConversionResult = {
+  imageUrl: string;
+  provider: ConversionProvider;
+  providerCostCents: number | null;
+  usageMetadata?: Record<string, unknown> | null;
+};
+
+export async function runLineartWithFallback(
+  imageUrl: string,
+): Promise<LineartConversionResult> {
   const hasGemini = !!process.env.GEMINI_API_KEY;
-  const hasReplicate = !!process.env.REPLICATE_API_TOKEN;
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
 
   if (hasGemini) {
     try {
       const result = await runGeminiConversion(imageUrl);
-      return result;
+      return { ...result, provider: "gemini" };
     } catch (e) {
       console.warn(
-        "[convert] Gemini conversion failed, falling back to Replicate:",
+        "[convert] Gemini conversion failed, falling back to OpenAI:",
         e instanceof Error ? e.message : String(e)
       );
     }
-  } else if (hasReplicate) {
-    console.info("[convert] GEMINI_API_KEY not set, using Replicate only.");
+  } else if (hasOpenAI) {
+    console.info("[convert] GEMINI_API_KEY not set, using OpenAI only.");
   }
 
-  if (hasReplicate) {
-    return await runLineartWithRetry(imageUrl);
+  if (hasOpenAI) {
+    const result = await runLineartOpenAIFallback(imageUrl);
+    return { ...result, provider: "openai" };
   }
 
   throw new Error(
-    "No conversion provider available. Set GEMINI_API_KEY or REPLICATE_API_TOKEN."
+    "No conversion provider available. Set GEMINI_API_KEY or OPENAI_API_KEY."
   );
 }

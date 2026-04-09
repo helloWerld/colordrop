@@ -86,3 +86,44 @@ describe("getStripeWebhookSecret", () => {
     );
   });
 });
+
+describe("stripeDashboardPaymentDeepLink", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("STRIPE_USE_SANDBOX", undefined);
+    vi.stubEnv("STRIPE_SECRET_KEY", undefined);
+    vi.stubEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", undefined);
+    vi.stubEnv("NEXT_PUBLIC_STRIPE_SANDBOX_PUBLISHABLE_KEY", undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns null when no ids", async () => {
+    const { stripeDashboardPaymentDeepLink } = await import("./stripe");
+    expect(stripeDashboardPaymentDeepLink({})).toBeNull();
+  });
+
+  it("prefers payment intent over checkout session", async () => {
+    vi.stubEnv("STRIPE_USE_SANDBOX", "true");
+    const { stripeDashboardPaymentDeepLink } = await import("./stripe");
+    expect(
+      stripeDashboardPaymentDeepLink({
+        paymentIntentId: "pi_abc",
+        checkoutSessionId: "cs_xyz",
+      }),
+    ).toBe("https://dashboard.stripe.com/test/payments/pi_abc");
+  });
+
+  it("uses checkout session when payment intent missing", async () => {
+    vi.stubEnv("STRIPE_USE_SANDBOX", "false");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_xxx");
+    const { stripeDashboardPaymentDeepLink } = await import("./stripe");
+    expect(
+      stripeDashboardPaymentDeepLink({
+        checkoutSessionId: "cs_live_123",
+      }),
+    ).toBe("https://dashboard.stripe.com/payments/cs_live_123");
+  });
+});

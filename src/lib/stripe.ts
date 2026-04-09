@@ -62,6 +62,27 @@ export function isStripeTestMode(): boolean {
   return false;
 }
 
+/**
+ * Deep link into Stripe Dashboard for a book order’s Checkout Session / payment.
+ * Prefer payment intent when present — Dashboard “Payments” URLs are most reliable for `pi_`.
+ * Falls back to Checkout Session id (`cs_`) in the same path (supported in current Dashboard).
+ */
+export function stripeDashboardPaymentDeepLink(params: {
+  checkoutSessionId?: string | null;
+  paymentIntentId?: string | null;
+}): string | null {
+  const pi = params.paymentIntentId?.trim();
+  const cs = params.checkoutSessionId?.trim();
+  if (!pi && !cs) return null;
+
+  const origin = isStripeTestMode()
+    ? "https://dashboard.stripe.com/test"
+    : "https://dashboard.stripe.com";
+
+  if (pi) return `${origin}/payments/${encodeURIComponent(pi)}`;
+  return `${origin}/payments/${encodeURIComponent(cs!)}`;
+}
+
 export const CREDIT_PACKAGES = {
   /** Unit amount in cents; quantity 1–49 passed at checkout */
   single: { amount: 99, name: "Conversion Credits" },

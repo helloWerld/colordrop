@@ -1,15 +1,19 @@
 import { DashboardHeaderNav } from "@/components/dashboard-header-nav";
+import { currentUser } from "@clerk/nextjs/server";
 import { HeaderLogo } from "@/components/header-logo";
 import { isLuluSandbox } from "@/lib/lulu";
 import { isStripeTestMode } from "@/lib/stripe";
 
 const isDev = process.env.NODE_ENV === "development";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await currentUser();
+  const userEmail =
+    user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress;
   const luluSandbox = isLuluSandbox();
   const stripeTestMode = isStripeTestMode();
   return (
@@ -17,7 +21,7 @@ export default function DashboardLayout({
       <header className="flex w-full items-center justify-between border-b border-border/40 bg-background/95 backdrop-blur">
         <div className="flex w-full h-14 items-center justify-between px-4">
           <HeaderLogo href="/dashboard" size="sm" />
-          <DashboardHeaderNav showLuluDev={isDev} />
+          <DashboardHeaderNav showLuluDev={isDev} userEmail={userEmail} />
         </div>
       </header>
       {stripeTestMode && (

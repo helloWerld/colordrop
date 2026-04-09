@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import { HeaderLogo } from "@/components/header-logo";
 import { HeaderDripAnimation } from "@/components/header-drip-animation";
 import { Diff } from "@/components/diff";
@@ -21,6 +22,15 @@ import {
 } from "lucide-react";
 import { WordRotate } from "@/components/ui/word-rotate";
 import { Highlighter } from "@/components/ui/highlighter";
+import { marketingPageMetadata } from "@/lib/marketing-metadata";
+import { getSiteUrl } from "@/lib/site-url";
+
+export const metadata = marketingPageMetadata({
+  title: "Color Your Photos",
+  description:
+    "Turn your favorite photos into custom, printed coloring books. Upload photos, our AI converts them to coloring pages, then print at home or order a book we print and ship.",
+  canonicalPath: "/",
+});
 
 const SAMPLE_GALLERY = [
   {
@@ -67,26 +77,60 @@ const SAMPLE_GALLERY = [
   },
 ] as const;
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const { userId } = await auth();
+  const isSignedIn = Boolean(userId);
+  const siteUrl = getSiteUrl().replace(/\/$/, "");
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        name: "ColorDrop",
+        url: siteUrl,
+      },
+      {
+        "@type": "WebSite",
+        name: "ColorDrop",
+        url: siteUrl,
+      },
+    ],
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background w-full">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <div className="relative flex flex-col w-full shrink-0">
         <header className="border-b border-border/40 bg-background z-[10]">
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
             <HeaderLogo href="/" />
             <nav className="flex items-center gap-4">
-              <Link
-                href="/sign-in"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/sign-up"
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                Get Started →
-              </Link>
+              {isSignedIn ? (
+                <Link
+                  href="/dashboard"
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/sign-in"
+                    className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/sign-up"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    Get Started →
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
         </header>
@@ -123,6 +167,12 @@ export default function LandingPage() {
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
               Upload photos. AI makes the outlines. We print your coloring book.
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Printed books ship to the <strong>United States</strong> and{" "}
+              <strong>Canada</strong> only. Conversion credits are for AI
+              conversions only—book printing and shipping are always a separate
+              charge at checkout.
             </p>
             <Link
               href="/sign-up"
@@ -234,6 +284,7 @@ export default function LandingPage() {
                   afterLabel={sample.afterLabel}
                   beforeAlt={`${sample.alt} before`}
                   afterAlt={`${sample.alt} after`}
+                  imageLoading={i === 0 ? "eager" : "lazy"}
                 />
               ))}
             </div>
@@ -242,7 +293,7 @@ export default function LandingPage() {
             href="/sign-up"
             className="mt-12 inline-block rounded-lg bg-primary px-8 py-4 text-lg font-medium text-primary-foreground shadow-lg hover:bg-primary/90 "
           >
-            Try it Now 👉 Convert Your First 5 Photos for FREE!
+            Try it Now 👉 Convert Your First 3 Photos for FREE!
           </Link>
         </section>
 
@@ -258,7 +309,7 @@ export default function LandingPage() {
             <div className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <Truck className="h-4 w-4" aria-hidden />
-                We print & ship
+                We print & ship (US &amp; Canada)
               </span>
               <span className="flex items-center gap-2">
                 <Download className="h-4 w-4" aria-hidden />
@@ -294,7 +345,7 @@ export default function LandingPage() {
                   Create your first book →
                 </Link>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Free to sign up — 5 conversions on us
+                  Free to sign up — 3 conversions on us
                 </p>
               </div>
               <div className="flex flex-col rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -321,7 +372,7 @@ export default function LandingPage() {
                   Convert & print immediately →
                 </Link>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Free to sign up — 5 conversions on us
+                  Free to sign up — 3 conversions on us
                 </p>
               </div>
             </div>
@@ -677,6 +728,12 @@ export default function LandingPage() {
               >
                 Cookies
               </Link>
+              <a
+                href="mailto:hello@colordrop.ai"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Support
+              </a>
             </nav>
           </div>
         </footer>

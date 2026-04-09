@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/react";
 import { Nunito, Inter } from "next/font/google";
 import { clerkThemeVariables } from "@/lib/clerk-theme";
+import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -17,6 +18,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getSiteUrl()),
   title: {
     default: "ColorDrop — Color Your Photos",
     template: "%s | ColorDrop",
@@ -28,6 +30,12 @@ export const metadata: Metadata = {
     description:
       "Turn your favorite photos into custom, printed coloring books.",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ColorDrop — Color Your Photos",
+    description:
+      "Turn your favorite photos into custom, printed coloring books.",
   },
 };
 

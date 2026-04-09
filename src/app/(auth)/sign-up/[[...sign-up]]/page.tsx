@@ -2,6 +2,14 @@ import { SignUp } from "@clerk/nextjs";
 import { HeaderLogo } from "@/components/header-logo";
 import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
+import { marketingPageMetadata } from "@/lib/marketing-metadata";
+
+export const metadata = marketingPageMetadata({
+  title: "Create account",
+  description:
+    "Create a ColorDrop account to turn photos into coloring pages and order custom printed coloring books.",
+  canonicalPath: "/sign-up",
+});
 
 export default function SignUpPage() {
   return (

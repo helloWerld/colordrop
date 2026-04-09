@@ -67,7 +67,7 @@ CREATE TABLE pages (
   original_image_path TEXT NOT NULL,
   outline_image_path TEXT NOT NULL,
   conversion_status TEXT NOT NULL CHECK (conversion_status IN ('pending', 'processing', 'completed', 'failed')),
-  replicate_prediction_id TEXT,
+  provider_prediction_id TEXT,
   credit_value_cents INT CHECK (credit_value_cents IS NULL OR credit_value_cents IN (15, 20, 25)),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(book_id, position)

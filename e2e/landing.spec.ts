@@ -4,7 +4,9 @@ test("landing page loads and shows key content", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/ColorDrop/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: /sign in|get started|start/i })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /sign in|get started|start/i }).first(),
+  ).toBeVisible();
 });
 
 test("marketing links exist", async ({ page }) => {

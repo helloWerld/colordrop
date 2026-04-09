@@ -17,6 +17,7 @@ import { CoverPrintPreview } from "@/components/cover-print-preview";
 import { PageTrimUniformPreview } from "@/components/page-trim-uniform-preview";
 import { CropRotateEditor } from "@/components/crop-rotate-editor";
 import { Highlighter } from "@/components/ui/highlighter";
+import { UploadConsentCheckbox } from "@/components/upload-consent-checkbox";
 
 type Credits = {
   free_remaining: number;
@@ -107,6 +108,8 @@ export function BookEditorClient({
     null,
   );
   const [, setSavingEdit] = useState(false);
+  const [uploadConsentPage, setUploadConsentPage] = useState(false);
+  const [coverUploadConsent, setCoverUploadConsent] = useState(false);
 
   const fetchCredits = useCallback(async () => {
     const res = await fetch("/api/credits");
@@ -135,6 +138,7 @@ export function BookEditorClient({
     }
     setPreviewFile(null);
     setConvertError(null);
+    setUploadConsentPage(false);
   }, [previewUrl]);
 
   const fetchPrice = useCallback(async () => {
@@ -226,6 +230,7 @@ export function BookEditorClient({
     setPreviewFile(file);
     setPreviewUrl(URL.createObjectURL(file));
     setConvertError(null);
+    setUploadConsentPage(false);
     e.target.value = "";
   };
 
@@ -234,6 +239,12 @@ export function BookEditorClient({
 
   const handleStartConvert = async () => {
     if (!previewFile || isConverting || totalCredits === 0) return;
+    if (!uploadConsentPage) {
+      setConvertError(
+        "Please confirm the upload agreement before converting.",
+      );
+      return;
+    }
     if (pages.length >= pageTier) return;
 
     setIsConverting(true);
@@ -248,6 +259,7 @@ export function BookEditorClient({
     try {
       const formData = new FormData();
       formData.append("file", previewFile);
+      formData.append("upload_consent", "true");
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: formData,
@@ -271,6 +283,7 @@ export function BookEditorClient({
           storage_path: path,
           conversion_context: "book",
           book_id: bookId,
+          upload_consent: true,
         }),
       });
 
@@ -314,6 +327,13 @@ export function BookEditorClient({
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!coverUploadConsent) {
+      setCoverUploadError(
+        "Please confirm the upload agreement before uploading a cover image.",
+      );
+      e.target.value = "";
+      return;
+    }
 
     setIsUploadingCover(true);
     setCoverUploadError(null);
@@ -323,6 +343,7 @@ export function BookEditorClient({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("book_id", bookId);
+      formData.append("upload_consent", "true");
       const res = await fetch("/api/upload/cover", {
         method: "POST",
         body: formData,
@@ -548,6 +569,14 @@ export function BookEditorClient({
             </>
           )}
         </p>
+        <div className="mt-4 max-w-xl">
+          <UploadConsentCheckbox
+            id={`cover-upload-consent-${bookId}`}
+            checked={coverUploadConsent}
+            onCheckedChange={setCoverUploadConsent}
+            disabled={isUploadingCover}
+          />
+        </div>
         {(coverUploadMessage || coverUploadError) && (
           <div
             className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
@@ -592,7 +621,9 @@ export function BookEditorClient({
                   </button>
                   <label
                     className={`text-center cursor-pointer w-full flex flex-row justify-center items-center gap-2 flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isUploadingCover ? "pointer-events-none opacity-60" : ""
+                      isUploadingCover || !coverUploadConsent
+                        ? "pointer-events-none opacity-60"
+                        : ""
                     }`}
                   >
                     <Upload className="h-4 w-4" />
@@ -601,7 +632,7 @@ export function BookEditorClient({
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       className="hidden"
-                      disabled={isUploadingCover}
+                      disabled={isUploadingCover || !coverUploadConsent}
                       onChange={handleCoverUpload}
                     />
                   </label>
@@ -631,7 +662,9 @@ export function BookEditorClient({
           <div className="mt-2 space-y-3 py-2">
             <label
               className={` cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex flex-row justify-center items-center gap-2 ${
-                isUploadingCover ? "pointer-events-none opacity-60" : ""
+                isUploadingCover || !coverUploadConsent
+                  ? "pointer-events-none opacity-60"
+                  : ""
               }`}
             >
               <Upload className="h-4 w-4" />
@@ -640,7 +673,7 @@ export function BookEditorClient({
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
-                disabled={isUploadingCover}
+                disabled={isUploadingCover || !coverUploadConsent}
                 onChange={handleCoverUpload}
               />
             </label>
@@ -814,6 +847,14 @@ export function BookEditorClient({
                     <p className="mt-2 text-sm text-amber-600 dark:text-amber-500">
                       This conversion uses 1 credit.
                     </p>
+                    <div className="mt-4 max-w-xl">
+                      <UploadConsentCheckbox
+                        id={`book-page-upload-consent-${bookId}`}
+                        checked={uploadConsentPage}
+                        onCheckedChange={setUploadConsentPage}
+                        disabled={isConverting}
+                      />
+                    </div>
                     {convertError && (
                       <p className="mt-1 text-sm text-destructive">
                         {convertError}
@@ -824,7 +865,9 @@ export function BookEditorClient({
                         type="button"
                         onClick={handleStartConvert}
                         disabled={
-                          totalCredits === 0 || pages.length >= pageTier
+                          totalCredits === 0 ||
+                          pages.length >= pageTier ||
+                          !uploadConsentPage
                         }
                         className="rounded-lg flex flex-1 flex-row justify-center items-center gap-2 bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
                       >

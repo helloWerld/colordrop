@@ -1,6 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
+import {
+  BOOK_LOCKED_FOR_EDITING_ERROR,
+  isBookLockedForEditing,
+} from "@/lib/print-snapshot";
 
 export async function GET(
   _request: Request,
@@ -99,6 +103,13 @@ export async function PATCH(
   }
 
   const supabase = createServerSupabaseClient();
+  if (await isBookLockedForEditing(supabase, bookId)) {
+    return NextResponse.json(
+      { error: BOOK_LOCKED_FOR_EDITING_ERROR },
+      { status: 409 },
+    );
+  }
+
   const { data, error } = await supabase
     .from("books")
     .update({ title, updated_at: new Date().toISOString() })

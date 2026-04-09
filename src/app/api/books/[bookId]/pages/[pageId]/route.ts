@@ -1,6 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
+import {
+  BOOK_LOCKED_FOR_EDITING_ERROR,
+  isBookLockedForEditing,
+} from "@/lib/print-snapshot";
 
 type CropRect = { x?: number; y?: number; width?: number; height?: number };
 
@@ -86,6 +90,13 @@ export async function PATCH(
     return NextResponse.json({ error: "Book not found" }, { status: 404 });
   }
 
+  if (await isBookLockedForEditing(supabase, bookId)) {
+    return NextResponse.json(
+      { error: BOOK_LOCKED_FOR_EDITING_ERROR },
+      { status: 409 },
+    );
+  }
+
   const { data: page, error } = await supabase
     .from("pages")
     .update(updates)
@@ -127,6 +138,13 @@ export async function DELETE(
 
   if (bookErr || !book) {
     return NextResponse.json({ error: "Book not found" }, { status: 404 });
+  }
+
+  if (await isBookLockedForEditing(supabase, bookId)) {
+    return NextResponse.json(
+      { error: BOOK_LOCKED_FOR_EDITING_ERROR },
+      { status: 409 },
+    );
   }
 
   const { data: page, error: pageErr } = await supabase
@@ -173,7 +191,6 @@ export async function DELETE(
     .from("books")
     .update({
       page_count: newCount,
-      credits_applied_value_cents: 0,
       updated_at: new Date().toISOString(),
     })
     .eq("id", bookId);

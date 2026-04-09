@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { LoadingSpinner } from "@/components/loading-spinner";
 
 type Conversion = {
   id: string;
@@ -126,7 +127,9 @@ export default function SavedPagesPage() {
         >
           ← Back to Dashboard
         </Link>
-        <p className="text-muted-foreground">Loading...</p>
+        <div className="text-muted-foreground">
+          <LoadingSpinner size="sm" label="Loading saved pages" />
+        </div>
       </div>
     );
   }

@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { UploadConsentCheckbox } from "@/components/upload-consent-checkbox";
 
 export default function ConvertPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [uploadConsent, setUploadConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -33,12 +35,17 @@ export default function ConvertPage() {
       setError("Please select an image.");
       return;
     }
+    if (!uploadConsent) {
+      setError("Please confirm the upload agreement before converting.");
+      return;
+    }
     setError(null);
     setResultUrl(null);
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("upload_consent", "true");
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: formData,
@@ -54,6 +61,7 @@ export default function ConvertPage() {
         body: JSON.stringify({
           storage_path: path,
           conversion_context: "one_off",
+          upload_consent: true,
         }),
       });
       if (convertRes.status === 402) {
@@ -116,6 +124,7 @@ export default function ConvertPage() {
           accept="image/jpeg,image/png,image/webp"
           onChange={(e) => {
             setFile(e.target.files?.[0] ?? null);
+            setUploadConsent(false);
             setResultUrl(null);
             setError(null);
           }}
@@ -124,10 +133,21 @@ export default function ConvertPage() {
 
         {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
+        <div className="mt-4">
+          <UploadConsentCheckbox
+            id="convert-upload-consent"
+            checked={uploadConsent}
+            onCheckedChange={setUploadConsent}
+            disabled={loading}
+          />
+        </div>
+
         <button
           type="button"
           onClick={handleConvert}
-          disabled={loading || !file || totalCredits === 0}
+          disabled={
+            loading || !file || totalCredits === 0 || !uploadConsent
+          }
           className="mt-6 w-full rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {loading ? "Converting..." : "Convert"}

@@ -11,17 +11,27 @@ export function OrderStatusSteps({
   hasError,
   errorMessage,
   isPending,
+  isRefunded,
 }: {
   steps: OrderStatusStep[];
   currentStepIndex: number;
   hasError?: boolean;
   errorMessage?: string | null;
   isPending?: boolean;
+  /** Fulfillment could not complete; payment was returned */
+  isRefunded?: boolean;
 }) {
-  const frozen = Boolean(hasError || isPending);
+  const frozen = Boolean(hasError || isPending || isRefunded);
 
   return (
     <div className="mt-4 space-y-3">
+      {isRefunded && (
+        <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
+          This order was refunded because we could not fulfill it. You can open
+          your book from the dashboard and try checkout again when you are
+          ready.
+        </p>
+      )}
       {hasError && (
         <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {errorMessage?.trim()

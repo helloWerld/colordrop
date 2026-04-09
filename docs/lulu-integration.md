@@ -33,6 +33,19 @@ When changing bindings, trims, or paper options:
 
 `createPrintJob` in `lulu.ts` follows the API’s `printable_normalization` pattern (interior + cover `source_url`, `pod_package_id` inside normalization). Cross-check the OpenAPI spec if Lulu announces schema changes.
 
+## PDF URLs for print jobs
+
+Interior and cover PDFs live in the private **`pdfs`** bucket. At fulfillment time, [`src/lib/lulu-print-job-retry.ts`](../src/lib/lulu-print-job-retry.ts) calls `createSignedUrl` with **`SIGNED_URL_TTL_SEC`** (currently **7 days**) so Lulu can download files even if normalization is queued. URLs are **regenerated before each** `createPrintJob` attempt so retries do not reuse an expired link. Lulu requires URLs to be accessible when they fetch ([invalid URL rejection](https://help.api.lulu.com/en/support/solutions/articles/64000306380-why-has-my-print-job-been-rejected-)); they do not document a minimum TTL, so this TTL is a conservative default.
+
 ## Fulfillment fee
 
 Per-order fulfillment fees are included in the cost-calculation response; see [Per Order Fulfillment Fee](https://help.api.lulu.com/en/support/solutions/articles/64000265990-per-order-fulfillment-fee) (API KB).
+
+## Customer defect policy (Lulu)
+
+Misprints and manufacturing defects are handled with Lulu under **their** published processes. Internal summary and links: [`docs/lulu-defect-policy.md`](./lulu-defect-policy.md).
+
+## Operations runbook
+
+For support triage and policy handling of technical non-fulfillment vs manufacturing defects, see:
+- [`docs/fulfillment-runbook.md`](./fulfillment-runbook.md)

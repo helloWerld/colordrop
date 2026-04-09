@@ -217,16 +217,6 @@ export default async function DashboardPage() {
                   >
                     View order →
                   </Link>
-                  {o.interior_pdf_path ? (
-                    <a
-                      href={`/api/orders/${o.id}/pdf`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-primary hover:underline"
-                    >
-                      View PDF →
-                    </a>
-                  ) : null}
                 </div>
               </div>
             ))}

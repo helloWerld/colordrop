@@ -22,22 +22,22 @@ export async function POST(request: Request) {
   } catch {
     // no body
   }
-  const title =
-    typeof body.title === "string" ? body.title.trim() : "";
+  const title = typeof body.title === "string" ? body.title.trim() : "";
 
-  const trimSizeId = typeof body.trim_size_id === "string" ? body.trim_size_id : "large";
+  const trimSizeId =
+    typeof body.trim_size_id === "string" ? body.trim_size_id : "large";
   const pageTier = typeof body.page_tier === "number" ? body.page_tier : 24;
 
   if (!isTrimSizeId(trimSizeId)) {
     return NextResponse.json(
       { error: "Invalid trim size. Use pocket, medium, or large." },
-      { status: 400 }
+      { status: 400 },
     );
   }
   if (!isPageTier(pageTier)) {
     return NextResponse.json(
       { error: "Invalid page tier. Use 12, 24, 32, 48, 64, or 128." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     console.error("getOrCreateUserProfile", e);
     return NextResponse.json(
       { error: "Failed to ensure user profile" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -64,14 +64,16 @@ export async function POST(request: Request) {
       pod_package_id: getPodPackageId(trimSizeId as TrimSizeId, pageTier),
       page_tier: pageTier,
       page_count: 0,
-      credits_applied_value_cents: 0,
     })
     .select()
     .single();
 
   if (error) {
     console.error("insert book", error);
-    return NextResponse.json({ error: "Failed to create book" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create book" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ book });

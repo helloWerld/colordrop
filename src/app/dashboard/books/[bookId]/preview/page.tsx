@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import type { CropRectInput } from "@/components/crop-rotate-editor";
 import { getProductByTrimCode } from "@/lib/book-products";
+import { isBookEligibleForCheckout } from "@/lib/book-checkout-eligibility";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { PreviewClient } from "./preview-client";
 
@@ -17,7 +18,7 @@ export default async function BookPreviewPage({
   const supabase = createServerSupabaseClient();
   const { data: book, error: bookError } = await supabase
     .from("books")
-    .select("id, title, page_count, trim_size")
+    .select("id, title, page_count, trim_size, status")
     .eq("id", bookId)
     .eq("user_id", userId)
     .single();
@@ -76,6 +77,18 @@ export default async function BookPreviewPage({
     }
   }
 
+  const { data: orderForBook } = await supabase
+    .from("orders")
+    .select("id, status")
+    .eq("book_id", bookId)
+    .limit(1)
+    .maybeSingle();
+
+  const checkoutEligible = isBookEligibleForCheckout(
+    book.status,
+    orderForBook ?? undefined,
+  );
+
   return (
     <div className="max-w-3xl mx-auto w-full space-y-6">
       <div>
@@ -98,6 +111,8 @@ export default async function BookPreviewPage({
         trimAspectRatio={trimAspectRatio}
         previewPages={previewPages}
         pageCount={book.page_count ?? 0}
+        checkoutEligible={checkoutEligible}
+        orderId={orderForBook?.id ?? null}
       />
     </div>
   );

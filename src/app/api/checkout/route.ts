@@ -12,6 +12,10 @@ import {
 } from "@/lib/pricing";
 import { isLuluSandbox, shippingFormToLuluCostAddress } from "@/lib/lulu";
 import { shippingAddressSchema } from "@/lib/validators";
+import {
+  DUPLICATE_BOOK_CHECKOUT_ERROR,
+  isBookEligibleForCheckout,
+} from "@/lib/book-checkout-eligibility";
 
 /** Prefer the request origin so local dev matches the browser without flipping env. */
 function appBaseUrl(request: Request): string {
@@ -144,12 +148,28 @@ export async function POST(request: Request) {
     const supabase = createServerSupabaseClient();
     const { data: book, error: bookErr } = await supabase
       .from("books")
-      .select("id, page_count, page_tier, trim_size")
+      .select("id, page_count, page_tier, trim_size, status")
       .eq("id", bookId)
       .eq("user_id", userId)
       .single();
     if (bookErr || !book) {
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
+    }
+
+    const { data: existingOrderRow } = await supabase
+      .from("orders")
+      .select("id, status")
+      .eq("book_id", bookId)
+      .limit(1)
+      .maybeSingle();
+
+    if (
+      !isBookEligibleForCheckout(book.status, existingOrderRow ?? undefined)
+    ) {
+      return NextResponse.json(
+        { error: DUPLICATE_BOOK_CHECKOUT_ERROR },
+        { status: 409 },
+      );
     }
     const pageCount = book.page_count ?? 0;
     const pageTier = book.page_tier ?? 24;

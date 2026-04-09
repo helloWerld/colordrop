@@ -1,4 +1,12 @@
 import Link from "next/link";
+import { marketingPageMetadata } from "@/lib/marketing-metadata";
+
+export const metadata = marketingPageMetadata({
+  title: "Cookie Policy",
+  description:
+    "ColorDrop cookie policy: essential session and auth cookies, analytics, and how to manage preferences.",
+  canonicalPath: "/cookies",
+});
 
 export default function CookiesPage() {
   return (
@@ -6,7 +14,7 @@ export default function CookiesPage() {
       <h1 className="font-heading text-3xl font-bold text-foreground">
         Cookie Policy
       </h1>
-      <p className="mt-2 text-sm text-muted-foreground">Last updated: March 2026</p>
+      <p className="mt-2 text-sm text-muted-foreground">Last updated: April 2026</p>
 
       <div className="prose prose-neutral mt-8 space-y-6 text-foreground">
         <section>
@@ -20,6 +28,9 @@ export default function CookiesPage() {
             </li>
             <li>
               <strong>Analytics (if enabled)</strong> — We may use Vercel Analytics or similar to understand how the site is used (e.g. page views). This helps us improve the product.
+            </li>
+            <li>
+              <strong>Payment (Stripe)</strong> — When you check out, Stripe may set cookies to process your payment securely and prevent fraud. These are managed by Stripe under their privacy policy.
             </li>
           </ul>
         </section>

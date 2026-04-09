@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { getPrintJobStatus } from "@/lib/lulu";
 import { getEmailForUserId, sendShippingNotification } from "@/lib/email";
+import { logIntegrationEvent } from "@/lib/integration-events";
 
 type LuluWebhookBody = {
   print_job_id?: number;
@@ -17,7 +18,8 @@ type LuluWebhookBody = {
 
 /**
  * Lulu webhook: PRINT_JOB_STATUS_CHANGED.
- * Optionally verify HMAC with LULU_WEBHOOK_SECRET; if not set, accept and process.
+ * In production, require HMAC signature verification using LULU_WEBHOOK_SECRET.
+ * In non-production, signature verification is optional to make local testing easier.
  * Updates order with lulu_status, tracking info; when SHIPPED, set order status to shipped.
  */
 export async function POST(request: Request) {
@@ -29,10 +31,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const isProd = process.env.NODE_ENV === "production";
   const secret = process.env.LULU_WEBHOOK_SECRET;
+  if (isProd && !secret) {
+    console.error("LULU_WEBHOOK_SECRET is not configured");
+    return NextResponse.json(
+      { error: "Webhook secret not configured" },
+      { status: 500 },
+    );
+  }
   if (secret) {
     const headersList = await headers();
-    const sig = headersList.get("x-lulu-signature") ?? headersList.get("x-hub-signature-256");
+    const sig =
+      headersList.get("x-lulu-signature") ??
+      headersList.get("x-hub-signature-256");
     if (!sig || !verifyLuluHmac(raw, secret, sig)) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
@@ -44,6 +56,17 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServerSupabaseClient();
+  await logIntegrationEvent(
+    {
+      provider: "lulu",
+      eventType: "webhook.received",
+      severity: "info",
+      status: "received",
+      luluPrintJobId: Number(printJobId),
+      payload: { external_id: body.external_id ?? null },
+    },
+    supabase,
+  );
   const { data: orders } = await supabase
     .from("orders")
     .select("id, lulu_status")
@@ -86,6 +109,18 @@ export async function POST(request: Request) {
     tracking_id: trackingId,
     tracking_url: trackingUrl,
   });
+  await logIntegrationEvent(
+    {
+      provider: "lulu",
+      eventType: "webhook.order_status_updated",
+      severity: "info",
+      status: statusName,
+      orderId: order.id,
+      luluPrintJobId: Number(printJobId),
+      payload: { trackingId: trackingId ?? null, trackingUrl: trackingUrl ?? null },
+    },
+    supabase,
+  );
 
   if (becameShipped) {
     const { data: orderRow } = await supabase

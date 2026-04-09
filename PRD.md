@@ -1,8 +1,10 @@
 # ColorDrop — Product Requirements Document
 
-**Version:** 1.1
-**Date:** March 3, 2026
+**Version:** 1.2
+**Date:** April 7, 2026
 **Status:** Draft
+
+*Launch checklist, open questions, and implementation todos: see [`TODO.md`](./TODO.md) in the repository.*
 
 **Company:** ColorDrop  
 **Domain:** colordrop.ai  
@@ -13,6 +15,7 @@
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
+   - [1.1 Product decisions, constraints & launch checklist](#11-product-decisions-constraints--launch-checklist)
 2. [Target Audience](#2-target-audience)
 3. [User Stories & Flows](#3-user-stories--flows)
 4. [Feature Requirements (MVP)](#4-feature-requirements-mvp)
@@ -56,6 +59,35 @@ A web application that:
 
 **Upload photos. AI makes the outlines. We print your coloring book.**
 
+### 1.1 Product decisions, constraints & launch checklist
+
+The following are **binding product decisions** for v1 (aligned with the decisions log in [`TODO.md`](./TODO.md)). Where implementation still differs, the codebase is being brought in line.
+
+| Area | Decision |
+|------|-----------|
+| **Markets / shipping** | **USA and Canada only** at launch; must be obvious in marketing and checkout. |
+| **Refunds** | Custom books: **no refunds** for buyer’s remorse or change of mind. **Exception:** if fulfillment **cannot** be completed after payment (e.g. Lulu submission fails after retries), **automatic Stripe refund**; Terms must describe this separately from Lulu’s **misprint / manufacturing defect** policy (review Lulu’s policy and align support scripts). |
+| **Support** | **hello@colordrop.ai** — target first response within **72 hours**. |
+| **Credits** | **Only** for image conversions; **cannot** apply to book printing or shipping. Remove legacy fields and copy that imply otherwise. |
+| **Tax** | Stripe Tax configured for **US + CA** before production launch. |
+| **Stripe Customer Portal** | **Out of scope for v1** — no self-serve billing portal at launch. |
+| **Email** | **Stripe** = payment receipts; **Resend** = branded order confirmation and shipping updates. |
+| **After payment** | **Freeze** the PDF used for printing: **DB snapshot** at payment time; **no** content edits after payment (no long-term retention of pre-payment edit history required). |
+| **Conversion AI** | **Gemini (Nano Banana)** primary; **OpenAI** (see `src/lib/openai-fallback.ts`) as **second** step when Gemini fails. |
+| **Stylization** | **Not in product** — single default outline style only; no stylization column or user-facing setting. |
+| **Auth (Clerk)** | Email/password, **Google**, and **Facebook** at launch. |
+| **Admin** | **Email allowlist** for admin dashboard and admin-only APIs. |
+| **Uploads** | Require a **checkbox**: representation of rights; consent; agreement to Terms & Privacy (including copyright/DMCA expectations). |
+| **GDPR** | Data subject requests handled **manually** via support (no self-serve export portal required for launch). |
+| **Moderation** | Terms + **reactive** takedown (no automated moderation pipeline for launch). |
+| **Analytics / errors** | **Vercel Analytics** only — **do not** add Sentry. **Custom searchable logging** for Stripe and Lulu in the **admin dashboard**. |
+| **`/api/config`** | **Not public** — gate behind admin or stop exposing sandbox/test flags to anonymous clients. |
+| **Uptime** | Expose **`GET /api/health`** for external monitors (to be implemented). |
+| **SEO** | Sitemap, `robots.txt`, per-page metadata, canonical URLs — see [`TODO.md`](./TODO.md). |
+| **Data retention** | Stakeholder preference **~6 months** where applicable — **must be reconciled** with implementation (e.g. original-image cleanup cron), tax, and legal retention (open question in [`TODO.md`](./TODO.md)). |
+
+**Margins:** Book/shipping markups are not yet fully validated; admin tooling should surface **Lulu costs vs customer price** for review.
+
 ---
 
 ## 2. Target Audience
@@ -89,7 +121,7 @@ Sarah is a 34-year-old mom of two (ages 4 and 7). She took hundreds of photos on
 | ID    | Story                                                                                                                                                                                                      | Priority |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | US-1  | As a visitor, I can see what the app does and view sample coloring books so I understand the value before signing up.                                                                                      | P0       |
-| US-2  | As a visitor, I can create an account or sign in with Google/email so I can start making a book.                                                                                                           | P0       |
+| US-2  | As a visitor, I can create an account or sign in with email, Google, or Facebook so I can start making a book.                                                                                            | P0       |
 | US-3  | As a user, I can upload one or more photos from my device so they can be converted into coloring pages.                                                                                                    | P0       |
 | US-4  | As a user, I can see a preview of each AI-generated coloring page so I can decide if it looks good.                                                                                                        | P0       |
 | US-5  | As a user, I can remove a page I don't like and upload a replacement.                                                                                                                                      | P0       |
@@ -99,7 +131,7 @@ Sarah is a 34-year-old mom of two (ages 4 and 7). She took hundreds of photos on
 | US-9  | As a user, I can review a digital preview of my complete book before ordering.                                                                                                                             | P0       |
 | US-10 | As a user, I can enter my shipping address and pay with a credit card to order my book.                                                                                                                    | P0       |
 | US-11 | As a user, I can view my order history and track shipping status.                                                                                                                                          | P1       |
-| US-12 | As a user, I can save a collring book and come back to finish it later.                                                                                                                                    | P1       |
+| US-12 | As a user, I can save a coloring book and come back to finish it later.                                                                                                                                     | P1       |
 | US-13 | As a user, I can re-order a previously completed book.                                                                                                                                                     | P2       |
 | US-14 | As a new user, I get 3 free image conversions to test the platform.                                                                                                                                        | P0       |
 | US-15 | After my free credits run out, I can buy conversion credits: 1–49 at $0.99 each (quantity selector), or 50-pack or 100-pack at lower per-credit prices.                                                    | P0       |
@@ -174,8 +206,8 @@ Dashboard (order visible in history)
 
 | Requirement        | Details                                                |
 | ------------------ | ------------------------------------------------------ |
-| Sign up            | Email/password and Google OAuth                        |
-| Sign in            | Email/password and Google OAuth                        |
+| Sign up            | Email/password, Google OAuth, and Facebook OAuth       |
+| Sign in            | Email/password, Google OAuth, and Facebook OAuth       |
 | Session management | Persistent sessions via Clerk; automatic token refresh |
 | Account deletion   | Users can delete their account and all associated data |
 
@@ -191,7 +223,9 @@ Dashboard (order visible in history)
 | Image size guidance   | Per book size, show recommended min dimensions (e.g. Pocket 1275×2063 px, Medium 2100×3000 px, Large 2550×3300 px at 300 PPI). Warn that wrong size or aspect can cause misprints.        |
 | Bulk upload           | Select multiple files at once; drag-and-drop support                                                                                                                                      |
 | Upload feedback       | Per-file progress bar, success/error states                                                                                                                                               |
-| Storage               | Supabase Storage; original files retained until order is fulfilled, then deleted after 90 days                                                                                            |
+| Storage               | Supabase Storage; original files deleted after order fulfillment per retention policy (see **§1.1** and [`TODO.md`](./TODO.md) — e.g. cron cleanup timing must match final policy)           |
+| Upload legal checkbox | User must confirm rights to use images and agreement to Terms & Privacy (including copyright/DMCA expectations) before upload                                                           |
+| Shipping geography    | **USA and Canada only** at launch; checkout and marketing must enforce or clearly state this                                                                                               |
 
 ### 4.3 Free Tier & Conversion Credits
 
@@ -232,10 +266,11 @@ Dashboard (order visible in history)
 
 | Requirement       | Details                                                                                                                                                                                            |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model provider    | Gemini API (Nano Banana) primary; Replicate API fallback                                                                                                                                           |
+| Model provider    | **Gemini API (Nano Banana) primary; OpenAI image edit fallback** when Gemini fails (`src/lib/openai-fallback.ts`). |
 | Primary model     | Gemini 2.5 Flash Image (`gemini-2.5-flash-image`) for photo-to-outline via image editing (image + prompt → image)                                                                                  |
-| Fallback model    | Replicate (ControlNet lineart pipeline `pnyompen/sd-lineart-controlnet`) when Gemini is unavailable or errors. OpenAI GPT-4o image edit is reserved for future use as an optional second fallback. |
-| Prompt            | Single default style: clean black-and-white coloring book outline (no user-selectable stylization).                                                                                                |
+| Fallback model    | **OpenAI** (`gpt-image-1` via `images.edit` in `runLineartOpenAIFallback`) when Gemini errors or is unavailable. Log provider (**Gemini** vs **OpenAI**) in admin for cost/quality review.        |
+| Outline style     | Single default — clean black-and-white coloring book outline (no alternate styles or presets).                                                                                                      |
+| Prompt            | Single default: clean black-and-white coloring book outline.                                                                                                                                        |
 | Output format     | PNG, 300 DPI, black outlines on white background                                                                                                                                                   |
 | Output dimensions | Matched to book trim size: Pocket 1275×2063 px, Medium 2100×3000 px, Large 2550×3300 px (300 DPI). User sees recommended dimensions for their chosen book size.                                    |
 | Processing time   | Target < 30 seconds per image; UI shows animated progress                                                                                                                                          |
@@ -278,8 +313,10 @@ Dashboard (order visible in history)
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Payment provider | Stripe Checkout (hosted page)                                                                                                                                                                                                                                                                                                                                                                                      |
 | Payment methods  | Credit/debit cards (Visa, Mastercard, Amex); Apple Pay; Google Pay                                                                                                                                                                                                                                                                                                                                                 |
-| Shipping address | Collected in-app before redirecting to Stripe                                                                                                                                                                                                                                                                                                                                                                      |
+| Shipping address | Collected in-app before redirecting to Stripe; **USA and Canada only** at launch (**§1.1**)                                                                                                                                                                                                                                                                                                                         |
 | Shipping options | Standard (MAIL), Priority (PRIORITY_MAIL), Expedited (EXPEDITED) — fixed prices per tier                                                                                                                                                                                                                                                                                                                           |
+| Duplicate checkout | **Block** checkout when the book already has an order or is already paid (pre-launch requirement — [`TODO.md`](./TODO.md)).                                                                                                                                                                                                                                                                                      |
+| Stripe Tax         | Production **Stripe Tax** for US + CA where required (**§1.1**).                                                                                                                                                                                                                                                                                                                                                    |
 | Price breakdown  | One payment with **separate line items**: **Book (printing & binding)** = fixed price by **book size** (Pocket / Medium / Large) and **page tier** (12, 24, 32, 48, 64, 128); **Shipping** (by tier). **Total** = Book + Shipping. Checkout must show size, page count (e.g. "24 pages (24 images)"), and state that books are printed double-sided. Conversion credits do not apply. Tax via Stripe when enabled. |
 | Stripe mode      | One-time payment via Checkout Session                                                                                                                                                                                                                                                                                                                                                                              |
 | Success flow     | Stripe redirects to `/order/confirmation?session_id={CHECKOUT_SESSION_ID}`; confirmation page looks up order by session and shows success                                                                                                                                                                                                                                                                          |
@@ -290,6 +327,8 @@ Dashboard (order visible in history)
 
 | Requirement     | Details                                                                                                                                                                                                                                                     |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Freeze after payment | At payment completion, **persist a DB snapshot** of book + pages + cover (and PDFs or inputs needed for Lulu). **No edits** to book/PDF content after payment (**§1.1**). Full pre-launch checklist: [`TODO.md`](./TODO.md).                            |
+| Fulfillment failure | If Lulu submission fails after retries, **automatic Stripe refund**, update order state, notify customer and **hello@colordrop.ai**; document in Terms (**§1.1**).                                                                                            |
 | PDF generation  | Server-side assembly of all coloring pages into a single interior PDF; separate cover PDF                                                                                                                                                                   |
 | PDF specs       | Interior: B&W, 300 DPI, **matching trim size** (Pocket / Medium / Large). One PDF page per book page; apply per-page crop and rotation if set. Cover: full-color, dimensions from Lulu cover-dimensions API for the book's `pod_package_id` and page count. |
 | File upload     | Upload generated PDFs to a publicly accessible URL (Supabase Storage signed URL, 1-hour expiry)                                                                                                                                                             |
@@ -324,14 +363,15 @@ Dashboard (order visible in history)
 | Authentication  | Clerk (managed auth)                                                     |
 | Database        | Supabase (PostgreSQL)                                                    |
 | File Storage    | Supabase Storage                                                         |
-| AI Processing   | Gemini API (Nano Banana) primary, Replicate API fallback                 |
+| AI Processing   | Gemini API (Nano Banana) primary; OpenAI fallback per **§4.6** |
 | PDF Generation  | `pdf-lib` (lightweight, no headless browser needed)                      |
 | Payments        | Stripe (Checkout Sessions + Webhooks)                                    |
 | Print & Ship    | Lulu Print API                                                           |
 | Hosting         | Vercel                                                                   |
 | Email           | Resend (transactional emails: order confirmation, shipping notification) |
 | Background Jobs | Vercel Functions (for AI processing, PDF generation, Lulu API calls)     |
-| Monitoring      | Vercel Analytics + Sentry for error tracking                             |
+| Monitoring      | **Vercel Analytics** only (no Sentry). **Planned:** `GET /api/health` for uptime; **admin dashboard** searchable logs for Stripe + Lulu (see **§1.1**) |
+| Admin (internal)| **Email allowlist**; orders, users/credits, economics, conversions by provider, content support views — see [`TODO.md`](./TODO.md) |
 
 ### 5.2 Architecture Diagram
 
@@ -357,7 +397,7 @@ Dashboard (order visible in history)
           │             │                    │          │
           ▼             ▼                    ▼          ▼
    ┌────────────┐ ┌──────────────────┐  ┌─────────────┐ ┌──────────┐
-   │  Supabase  │ │ Gemini / Replicate│  │   Stripe    │ │  Lulu    │
+   │  Supabase  │ │ Gemini / OpenAI  │  │   Stripe    │ │  Lulu    │
    │  Database  │ │ (AI conversion)   │  │   API       │ │  Print   │
    │  + Storage │ │                  │  │  (Payments) │ │  API     │
    └────────────┘ └──────────────────┘  └─────────────┘ └──────────┘
@@ -372,7 +412,7 @@ Dashboard (order visible in history)
 3. Client uploads image to Supabase Storage via signed upload URL.
 4. Client calls `POST /api/pages/convert` with the storage path and conversion_context (and book_id if in book flow).
 5. **Server checks conversion eligibility:** if `free_conversions_remaining` > 0, decrement it; else if user has purchased credits, deduct 1 (e.g. from cheapest pool first); else return 402 and prompt user to buy credits. Credits are never applied toward book price.
-6. API route sends image + single default prompt to conversion orchestrator: Gemini (Nano Banana) first; on failure or if unconfigured, Replicate is used for line-art conversion.
+6. API route sends image + single default prompt to conversion orchestrator: Gemini (Nano Banana) first; on failure, **OpenAI** fallback per **§4.6**.
 7. Converted outline image is downloaded (or received as inline data from Gemini) and stored in Supabase Storage.
 8. **Save to library:** insert into `saved_conversions` (user_id, original_image_path, outline_image_path, conversion_context: `book` or `one_off`).
 9. If in book editor: create/update `pages`; add to book. If one-off: client shows result with download/print / "Add to Book".
@@ -495,7 +535,6 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 | `pod_package_id`              | TEXT        | Full Lulu product SKU for the chosen trim (B&W, perfect bind, 60# white, matte)                          |
 | `page_tier`                   | INT         | Selected page count: one of 12, 24, 32, 48, 64, 128. Book must have exactly this many pages to checkout. |
 | `page_count`                  | INT         | Cached count of pages (must equal `page_tier` at checkout)                                               |
-| `credits_applied_value_cents` | INT         | Deprecated/legacy; store 0 (conversion credits do not apply to book price)                               |
 | `created_at`                  | TIMESTAMPTZ | Row creation time                                                                                        |
 | `updated_at`                  | TIMESTAMPTZ | Last modification time                                                                                   |
 
@@ -510,7 +549,7 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 | `original_image_path`     | TEXT                | Supabase Storage path to uploaded photo (or copied from saved_conversion if from library)   |
 | `outline_image_path`      | TEXT                | Supabase Storage path to generated coloring page (or from saved_conversion)                 |
 | `conversion_status`       | ENUM                | `pending`, `processing`, `completed`, `failed` (e.g. `completed` when from saved)           |
-| `replicate_prediction_id` | TEXT (nullable)     | Replicate job ID for tracking (null when page came from saved conversion)                   |
+| `provider_prediction_id` | TEXT (nullable)     | Legacy optional provider job ID for tracking (null when page came from saved conversion) |
 | `credit_value_cents`      | INT (nullable)      | Legacy; null or 0 (conversion credits do not apply to book price)                           |
 | `crop_rect`               | JSONB (nullable)    | Normalized crop region (x, y, width, height in 0–1); null = no crop                         |
 | `rotation_degrees`        | INT (nullable)      | 0, 90, 180, or 270; null = 0. Applied when generating interior PDF.                         |
@@ -550,7 +589,6 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 | `lulu_status`                 | TEXT        | Current Lulu status (CREATED, UNPAID, IN_PRODUCTION, SHIPPED, etc.)                                     |
 | `lulu_tracking_id`            | TEXT        | Carrier tracking ID                                                                                     |
 | `lulu_tracking_url`           | TEXT        | Carrier tracking URL                                                                                    |
-| `credits_applied_value_cents` | INT         | Legacy; 0 (conversion credits do not apply to book price)                                               |
 | `interior_pdf_path`           | TEXT        | Supabase Storage path to interior PDF                                                                   |
 | `cover_pdf_path`              | TEXT        | Supabase Storage path to cover PDF                                                                      |
 | `status`                      | ENUM        | `pending`, `paid`, `processing`, `submitted_to_print`, `in_production`, `shipped`, `delivered`, `error` |
@@ -568,7 +606,7 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 | ---------------- | --------------------------------------------------------------------------------- |
 | Purpose          | User sign-up, sign-in, session management                                         |
 | Integration      | `@clerk/nextjs` SDK                                                               |
-| Auth methods     | Email/password, Google OAuth                                                      |
+| Auth methods     | Email/password, Google OAuth, Facebook OAuth                                       |
 | Middleware       | Clerk middleware protects all `/dashboard/*`, `/api/*` routes                     |
 | User sync        | Clerk webhook on `user.created` to initialize user record in Supabase (if needed) |
 | Environment vars | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`                           |
@@ -595,41 +633,30 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 | Output           | PNG (as base64 in response; returned as data URL to route, then stored in Supabase) |
 | Environment vars | `GEMINI_API_KEY`                                                                    |
 
-### 7.4 Replicate — Fallback AI Conversion
-
-| Item             | Details                                                                             |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| Purpose          | Fallback when Gemini is not configured or fails                                     |
-| Primary model    | `pnyompen/sd-lineart-controlnet` — ControlNet lineart with Stable Diffusion img2img |
-| Cost per run     | ~$0.003 (approx. 322 runs per $1)                                                   |
-| Runtime          | ~14 seconds per image                                                               |
-| Integration      | `replicate` npm package                                                             |
-| Input            | Image URL (Supabase signed URL), single default prompt for coloring-book outline    |
-| Output           | URL to generated image (downloaded and stored in Supabase)                          |
-| Rate limiting    | Queue concurrent requests; max 5 parallel conversions per user                      |
-| Environment vars | `REPLICATE_API_TOKEN`                                                               |
-
-### 7.5 OpenAI (Optional Second Fallback)
+### 7.4 OpenAI — Fallback AI Conversion
 
 | Item             | Details                                                                        |
 | ---------------- | ------------------------------------------------------------------------------ |
-| Purpose          | Reserved for future use as optional fallback if both Gemini and Replicate fail |
+| Purpose          | **Second-step** line-art conversion when Gemini fails or is unavailable (see `runLineartOpenAIFallback` in `src/lib/openai-fallback.ts`) |
 | Endpoint         | `POST /v1/images/edits`                                                        |
-| Model            | GPT-4o image generation                                                        |
-| Environment vars | `OPENAI_API_KEY`                                                               |
+| Model            | `gpt-image-1` (image edit)                                                     |
+| Environment vars | `OPENAI_API_KEY` (**required in production** once orchestrator calls this path exclusively for fallback) |
 
-### 7.6 Stripe (Payments)
+### 7.5 Stripe (Payments)
 
-| Item                           | Details                                                                                                                                                                                                                                                                                                        |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose                        | (1) One-time payments for coloring book orders; (2) Conversion credit package purchases                                                                                                                                                                                                                        |
-| Integration                    | `stripe` npm package + `@stripe/stripe-js` for client                                                                                                                                                                                                                                                          |
-| Book checkout flow             | Create Checkout Session with line items (book printing/binding + shipping; no credit discount) → redirect → webhook triggers fulfillment                                                                                                                                                                       |
+| Item                           | Details                                                                                                                                                                                                                                                                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose                        | (1) One-time payments for coloring book orders; (2) Conversion credit package purchases                                                                                                                                                                                                                     |
+| Integration                    | `stripe` npm package + `@stripe/stripe-js` for client                                                                                                                                                                                                                                                       |
+| Book checkout flow             | Create Checkout Session with line items (book printing/binding + shipping; no credit discount) → redirect → webhook triggers fulfillment                                                                                                                                                                    |
 | Buy credits flow               | Single: variable quantity 1–49 at $0.99 each. 50-pack: $24.99. 100-pack: $39.99. Create Checkout Session; metadata `type: credit_purchase`, `userId`, `package_type`, and for single: `credit_quantity`. On success webhook, add credits to `user_profiles.paid_credits` based on total quantity purchased. |
-| Checkout Session metadata      | Book: `bookId`, `userId`, `pageCount`. Credit purchase: `type: credit_purchase`, `userId`, `package_type`, and for single: `credit_quantity`                                                                                                                                                                   |
-| Webhook events                 | `checkout.session.completed` — if book order, run fulfillment; if credit_purchase, add credits to user profile by package type                                                                                                                                                                                 |
-| Webhook signature verification | Verify using `STRIPE_WEBHOOK_SECRET`                                                                                                                                                                                                                                                                           |
-| Environment vars               | `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`                                                                                                                                                                                                                             |
+| Checkout Session metadata      | Book: `bookId`, `userId`, `pageCount`. Credit purchase: `type: credit_purchase`, `userId`, `package_type`, and for single: `credit_quantity`                                                                                                                                                                |
+| Webhook events                 | `checkout.session.completed` — if book order, run fulfillment; if credit_purchase, add credits to user profile by package type                                                                                                                                                                              |
+| Webhook: order insert failure  | If order **insert** fails after successful payment, **alert ops**, reconcile, and **refund in Stripe** if payment cannot be matched to an order (pre-launch — [`TODO.md`](./TODO.md)).                                                                                                                         |
+| Webhook signature verification | Verify using `STRIPE_WEBHOOK_SECRET`                                                                                                                                                                                                                                                                        |
+| Environment vars               | `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`                                                                                                                                                                                                                          |
+| Stripe Tax                     | Configure for **USA and Canada** collections per registration before production launch (**§1.1**).                                                                                                                                                                                                        |
+| Customer Portal                | **Not used in v1** — users pay per Checkout session; no self-serve billing portal (**§1.1**).                                                                                                                                                                                                               |
 
 ### 7.7 Lulu Print API (Print & Ship)
 
@@ -752,7 +779,7 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 **Implementation:** Clerk's pre-built `<SignIn />` and `<SignUp />` components, styled to match the app's color scheme using Clerk's appearance prop.
 
 - Centered card layout on the warm off-white background
-- Google OAuth button prominently displayed
+- Google and Facebook OAuth buttons prominently displayed
 - Friendly welcome copy ("Welcome back!" / "Let's make your first book!")
 
 ### 8.3 Dashboard (`/dashboard`)
@@ -829,7 +856,7 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 
 **Section 4: Sticky Bottom Bar**
 
-- Page count; running price estimate (book total minus credit value for conversions done in this book)
+- Page count; running price estimate (**book printing + shipping**; conversion credits are charged separately per new upload — they do not reduce book price)
 - "Preview My Book" (enabled when >= 2 pages and cover uploaded)
 
 ### 8.8 Book Preview (`/dashboard/books/[bookId]/preview`)
@@ -852,7 +879,7 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 **Layout:**
 
 - **Shipping Address Form:**
-  - Full name, Street address, Apt/Suite (optional), City, State, Postal code, Country (dropdown), Phone number
+  - Full name, Street address, Apt/Suite (optional), City, State, Postal code, Country (dropdown **limited to US/CA at launch**), Phone number
   - Friendly validation messages
 - **Shipping Method Selector:**
   - Radio buttons: Standard (free/low cost, 7-14 days), Priority (5-7 days), Express (2-3 days)
@@ -870,6 +897,8 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 ### 8.10 Order Confirmation (`/order/confirmation?session_id=...`)
 
 **Purpose:** Confirm successful order, set expectations.
+
+**Behavior:** If the Stripe webhook is slow, the page should **poll** or show clear loading/retry messaging until the order resolves (pre-launch item — [`TODO.md`](./TODO.md)).
 
 **Layout:**
 
@@ -906,7 +935,7 @@ Each saved conversion can belong to at most one collection (`saved_conversions.c
 | Lulu printing (base)     | Lulu API                                | ~$2.50 for a 20-page book    |
 | Lulu printing (per page) | Lulu API                                | ~$0.02-0.04 per page         |
 | Lulu shipping (Standard) | Lulu API                                | ~$3.99 (domestic US)         |
-| AI conversion per page   | Gemini (primary) / Replicate (fallback) | ~$0.04 / ~$0.003 per image   |
+| AI conversion per page   | Gemini (primary) / OpenAI (fallback) | ~varies by provider; monitor in admin |
 | Stripe fees              | Stripe                                  | 2.9% + $0.30 per transaction |
 | Supabase / hosting       | Supabase + Vercel                       | Negligible at low volume     |
 
@@ -982,22 +1011,25 @@ _Optional:_ Call the Lulu Print API cost calculator to populate the price matrix
 
 | Measure          | Implementation                                                                                      |
 | ---------------- | --------------------------------------------------------------------------------------------------- |
+| GDPR / DSAR      | Data subject requests handled **manually** via **hello@colordrop.ai** — no self-serve export portal required for v1 (**§1.1**) |
 | Transport        | HTTPS everywhere (Vercel enforces TLS)                                                              |
 | Image storage    | Supabase Storage with private buckets; access only via signed URLs                                  |
 | PII storage      | Shipping addresses stored encrypted at rest (Supabase handles this)                                 |
-| Image retention  | Original uploads deleted 90 days after order fulfillment or book deletion                           |
+| Image retention  | Original uploads deleted per **retention policy** (see **§1.1** — e.g. ~6 months vs tax/legal vs code such as post-fulfillment cleanup cron); must be reconciled |
 | Account deletion | Full data purge — images, books, orders metadata (retain only financial records as required by law) |
 
 ### 10.3 API Security
 
-| Measure          | Implementation                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stripe webhooks  | Signature verification using `stripe.webhooks.constructEvent`                                                                                                                                                                   |
-| Lulu webhooks    | HMAC-SHA256 verification using API secret                                                                                                                                                                                       |
-| Rate limiting    | Implemented on upload and conversion endpoints (e.g., 10 uploads/min, 20 conversions/hour per user)                                                                                                                             |
-| Input validation | Zod schemas on all API route inputs                                                                                                                                                                                             |
-| File validation  | MIME type and magic byte verification on all uploads; reject non-image files                                                                                                                                                    |
-| CSRF             | Built-in Next.js CSRF protection                                                                                                                                                                                                |
+| Measure          | Implementation                                                                                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stripe webhooks  | Signature verification using `stripe.webhooks.constructEvent`                                                                                                                                         |
+| Lulu webhooks    | Require `LULU_WEBHOOK_SECRET` + valid signature in production                                                                                                                                          |
+| Cron endpoints   | e.g. `GET /api/cron/cleanup-originals` must reject unauthenticated requests in production (`CRON_SECRET`)                                                                                              |
+| Config endpoints | `/api/config` **not** anonymously exposed — admin-only or no public sandbox flags (**§1.1**)                                                                                                           |
+| Rate limiting    | Implemented on upload and conversion endpoints (e.g., 10 uploads/min, 20 conversions/hour per user)                                                                                                   |
+| Input validation | Zod schemas on all API route inputs                                                                                                                                                                   |
+| File validation  | MIME type and magic byte verification on all uploads; reject non-image files                                                                                                                          |
+| CSRF             | Built-in Next.js CSRF protection                                                                                                                                                                      |
 | Credit integrity | When deducting for a conversion: single atomic DB update (free_conversions_remaining or paid_credits); reject if no credits; idempotency for Stripe credit-purchase webhook to avoid double-crediting |
 
 ### 10.4 Third-Party API Keys
@@ -1010,12 +1042,15 @@ All API keys and secrets stored as environment variables on Vercel. Never expose
 
 ### 11.1 Refund Policy
 
-Because coloring books are custom, print-on-demand products, **all sales are final**. No refunds or cancellations once payment is processed.
+Because coloring books are custom, print-on-demand products, **all sales are final** for buyer’s remorse / change of mind (**no refunds** as a baseline).
 
-**Exceptions:**
+**Exceptions (align Terms, support scripts, and Lulu’s published policies):**
 
-- Printing defect (misprinted pages, binding issues) — replacement book shipped at no cost, handled via Lulu support
-- Book never arrives (lost in transit) — replacement shipped or refund issued, handled case-by-case
+- **Technical non-fulfillment:** If ColorDrop **cannot** complete printing/fulfillment after payment (e.g. Lulu submission fails after retries), **automatic Stripe refund** as described in Terms; notify **hello@colordrop.ai** and the customer (**§1.1**).
+- **Lulu misprints / manufacturing defects:** Review **Lulu’s official policy** on reprints; decide whether ColorDrop **passes through** Lulu’s remedy (e.g. reprint) or limits remedies — document in Terms (open question in [`TODO.md`](./TODO.md)).
+- **Lost in transit / carrier issues** — handle case-by-case; align with support playbooks.
+
+**Out of scope for v1:** Stripe Customer Portal for self-serve refunds/billing (**§1.1**).
 
 ### 11.2 Policy Communication
 
@@ -1034,13 +1069,13 @@ The no-refund policy must be communicated clearly at multiple touchpoints:
 | Page             | Content                                                                                                                          |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Terms of Service | User agreements, refund policy, acceptable use, IP disclaimer (user warrants they own rights to uploaded images)                 |
-| Privacy Policy   | Data collection, storage, sharing (with Lulu for shipping, Stripe for payment, Replicate for AI processing), retention, deletion |
+| Privacy Policy   | Data collection, storage, sharing (with Lulu for shipping, Stripe for payment, **Google/Gemini** and **OpenAI** for AI conversion per subprocessors), retention, deletion |
 | Cookie Policy    | Clerk session cookies, Vercel analytics (if applicable)                                                                          |
 
 ### 11.4 Content & IP Considerations
 
 - Users must warrant they have the right to use uploaded images
-- App should include a checkbox at upload or checkout: "I confirm I have the right to use these images"
+- At upload: **checkbox** attesting rights, consent, and agreement to Terms & Privacy (including copyright/DMCA expectations) — **§1.1**
 - No automated content moderation in MVP, but Terms of Service prohibit inappropriate content
 - Consider adding basic NSFW detection in a future phase
 
@@ -1050,30 +1085,30 @@ The no-refund policy must be communicated clearly at multiple touchpoints:
 
 ### Phase 1: Foundation (Weeks 1-2)
 
-| Task              | Details                                                                                                                                                                                            |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Project setup     | Next.js project, Tailwind, shadcn/ui, TypeScript config                                                                                                                                            |
-| Authentication    | Clerk integration, sign-up/sign-in pages, middleware                                                                                                                                               |
-| Database          | Supabase project, schema migration: user_profiles (free_conversions_remaining, paid_credits), saved_conversions, credit_transactions (optional), RLS policies                                      |
-| Storage           | Supabase Storage buckets, upload utilities                                                                                                                                                         |
-| User profile init | On first sign-in, create user_profile with free_conversions_remaining = 3, paid_credits = 0                                                                                                       |
-| Landing page      | Hero, how-it-works, footer — styled per design system                                                                                                                                              |
-| Dashboard shell   | Layout, navigation, credits and free credits display, empty states                                                                                                                                 |
+| Task              | Details                                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project setup     | Next.js project, Tailwind, shadcn/ui, TypeScript config                                                                                                       |
+| Authentication    | Clerk integration, sign-up/sign-in pages, middleware                                                                                                          |
+| Database          | Supabase project, schema migration: user_profiles (free_conversions_remaining, paid_credits), saved_conversions, credit_transactions (optional), RLS policies |
+| Storage           | Supabase Storage buckets, upload utilities                                                                                                                    |
+| User profile init | On first sign-in, create user_profile with free_conversions_remaining = 3, paid_credits = 0                                                                   |
+| Landing page      | Hero, how-it-works, footer — styled per design system                                                                                                         |
+| Dashboard shell   | Layout, navigation, credits and free credits display, empty states                                                                                            |
 
 **Deliverable:** Users can sign up, sign in, see dashboard with balance and free conversion count.
 
 ### Phase 2: Conversions, Balance & Saved Library (Weeks 3-4)
 
-| Task                    | Details                                                                                                                                                                                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Image upload            | Multi-file upload to Supabase Storage with validation                                                                                                                                                                                                             |
-| AI conversion           | Gemini (Nano Banana) primary + Replicate fallback, conversion orchestrator, retry logic                                                                                                                                                                           |
-| Free tier & credits     | Before conversion: check free then paid credits; deduct free first, then paid; credits never apply to book price; use atomic updates for deductions                                                                              |
-| Saved conversions       | Every completed conversion inserts into saved_conversions; user_id, original/outline paths                                                                                                                                                                        |
-| One-off convert page    | Single-image upload → convert → save to library → download/print / "Add to Book"                                                                                                                                                                                  |
-| Buy credits             | Stripe Checkout: single (1–49 quantity at $0.99 each), 50-pack ($24.99), or 100-pack ($39.99); webhook adds to `user_profiles.paid_credits` based on total quantity purchased                                                                                       |
-| My Saved Pages          | List/grid of saved_conversions; download, delete, "Add to Book"                                                                                                                                                                                                   |
-| Balance & free count UI | Display on dashboard and convert page                                                                                                                                                                                                                             |
+| Task                    | Details                                                                                                                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Image upload            | Multi-file upload to Supabase Storage with validation                                                                                                                         |
+| AI conversion           | Gemini (Nano Banana) primary + OpenAI fallback per **§4.6**, orchestrator, retry logic                                                                 |
+| Free tier & credits     | Before conversion: check free then paid credits; deduct free first, then paid; credits never apply to book price; use atomic updates for deductions                           |
+| Saved conversions       | Every completed conversion inserts into saved_conversions; user_id, original/outline paths                                                                                    |
+| One-off convert page    | Single-image upload → convert → save to library → download/print / "Add to Book"                                                                                              |
+| Buy credits             | Stripe Checkout: single (1–49 quantity at $0.99 each), 50-pack ($24.99), or 100-pack ($39.99); webhook adds to `user_profiles.paid_credits` based on total quantity purchased |
+| My Saved Pages          | List/grid of saved_conversions; download, delete, "Add to Book"                                                                                                               |
+| Balance & free count UI | Display on dashboard and convert page                                                                                                                                         |
 
 **Deliverable:** Users can use free conversions, add funds, convert one-off, and manage saved pages.
 
@@ -1086,9 +1121,9 @@ The no-refund policy must be communicated clearly at multiple touchpoints:
 | pages.saved_conversion_id    | When adding from library, link page to saved_conversion; no new conversion                                            |
 | Cover upload                 | Separate cover upload flow                                                                                            |
 | Auto-save                    | Book state persisted on every change                                                                                  |
-| Price calculation            | Live book price (Lulu + markup); conversions for this book included — no separate conversion charge                   |
+| Price calculation            | Live book price (Lulu + markup) + shipping; **new uploads** in the book consume **conversion credits** (one per image); **saved** pages add no credit; book checkout **never** applies credits as a discount (**§1.1**) |
 
-**Deliverable:** Users can build a book from new uploads or saved conversions; conversions in book are free at checkout.
+**Deliverable:** Users can build a book from new uploads (credits per new conversion) or saved conversions (no credit); book payment is separate from credits.
 
 ### Phase 4: Preview & Checkout (Weeks 7-8)
 
@@ -1121,8 +1156,8 @@ The no-refund policy must be communicated clearly at multiple touchpoints:
 | Testing     | End-to-end testing with Lulu sandbox, Stripe test mode    |
 | Performance | Image optimization, loading states, error boundaries      |
 | Analytics   | Vercel Analytics, basic conversion funnel tracking        |
-| Monitoring  | Sentry error tracking, uptime monitoring                  |
-| SEO         | Meta tags, OpenGraph images, structured data              |
+| Monitoring  | **Vercel Analytics**; **`GET /api/health`** for uptime; admin log viewer for Stripe/Lulu — no Sentry (**§1.1**)        |
+| SEO         | Sitemap, `robots.txt`, meta + Open Graph + canonical URLs per [`TODO.md`](./TODO.md)                                     |
 | Launch      | Switch to production Lulu & Stripe keys, deploy, announce |
 
 **Deliverable:** Production-ready app.
@@ -1133,15 +1168,16 @@ The no-refund policy must be communicated clearly at multiple touchpoints:
 
 ### Open Questions
 
-| Question                                                          | Impact                                                                | Decision Needed By |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------ |
-| Should we offer landscape format (9" x 7") in addition to square? | Adds complexity to PDF generation and cover dimensions                | Phase 2            |
-| Do we need NSFW/content moderation on uploaded images?            | Legal/brand risk vs. cost of moderation API                           | Phase 4            |
-| Should Lulu print cost be fetched in real-time or cached?         | Real-time is accurate but adds latency; caching may show stale prices | Phase 2            |
-| International shipping — which countries to support at launch?    | Lulu ships globally but costs vary significantly                      | Phase 3            |
-| Should we pre-generate a back cover or let Lulu use a blank?      | Design decision; blank is simpler for MVP                             | Phase 2            |
-| Offer custom credit amounts or only the current options?          | UX; current plan: 1–49 (quantity), 50-pack, 100-pack                  | Phase 2            |
-| Refund policy for unused credits?                                 | Terms should state whether balance is refundable                      | Phase 4            |
+| Question | Impact | Notes |
+| -------- | ------ | ----- |
+| **Retention vs code** | Policy, cron, legal | Stakeholder **~6 months** vs current cleanup (e.g. post-fulfillment) vs **tax/accounting** retention — confirm with counsel; reconcile [`TODO.md`](./TODO.md). |
+| **Lulu misprints vs “no replacements”** | Terms, support | If Lulu offers reprint for defects, pass through to customers or not — **§11.1**; confirm wording. |
+| Landscape format (e.g. 9" × 7") in addition to current trim sizes? | PDF/cover complexity | Still open for future phases. |
+| NSFW / automated moderation? | Brand/legal vs cost | **v1:** reactive takedown per Terms (**§1.1**); automated detection is a future consideration. |
+| Lulu print cost: real-time vs cached? | Latency vs accuracy | Implementation detail; matrix + Lulu calculator already in use. |
+| **International shipping beyond US/CA?** | Pricing, ops | **v1:** **USA and Canada only** (**§1.1**); revisit later. |
+| Back cover: pre-generated vs Lulu blank? | Design | Open; blank is simpler. |
+| Refund policy for **unused conversion credits**? | Terms | Clarify in legal review alongside credit-only-for-conversions (**§1.1**). |
 
 ### Future Enhancements (Post-MVP)
 
@@ -1149,7 +1185,7 @@ The no-refund policy must be communicated clearly at multiple touchpoints:
 | ------------------------- | ----------------------------------------------------------------------------------------------- | -------- |
 | **Page captions**         | Let users add a title or caption to each coloring page                                          | High     |
 | **Multiple book sizes**   | Offer landscape (9x7), letter (8.5x11) in addition to square                                    | High     |
-| **Difficulty levels**     | AI generates "easy" (fewer details) vs. "detailed" outlines                                     | Medium   |
+| **Detail / difficulty presets** | Optional “simpler vs. more detailed” outlines (not currently planned — single default outline style today; revisit only if product scope changes) | Low |
 | **Text-to-coloring-page** | Type a description ("a dragon flying over a castle") and AI generates a coloring page from text | Medium   |
 | **Dedication page**       | Add a personal dedication page ("For Emma, with love from Grandma")                             | Medium   |
 | **Gift flow**             | Ship to a different address with a gift message                                                 | Medium   |
@@ -1177,12 +1213,9 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-# Image conversion: Gemini primary, Replicate fallback (at least one required)
+# Image conversion: Gemini primary; OpenAI fallback when Gemini fails (target — see §1.1)
 GEMINI_API_KEY=...
-REPLICATE_API_TOKEN=r8_...
-
-# OpenAI (optional second fallback; reserved for future use)
-# OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
 
 # Stripe
 STRIPE_SECRET_KEY=sk_...
@@ -1193,6 +1226,11 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 LULU_CLIENT_KEY=your-client-key
 LULU_CLIENT_SECRET=your-client-secret
 LULU_API_BASE_URL=https://api.lulu.com
+LULU_WEBHOOK_SECRET=...
+LULU_CONTACT_EMAIL=orders@colordrop.ai
+
+# Cron / ops (production)
+CRON_SECRET=...
 
 # Resend
 RESEND_API_KEY=re_...
@@ -1255,6 +1293,7 @@ coloringbook/
 │   │   │   ├── conversions/route.ts      # List/create saved_conversions
 │   │   │   ├── credits/route.ts          # Get credit counts; optional: buy-credits Checkout creation
 │   │   │   ├── checkout/route.ts         # Create Stripe session (book or credit purchase)
+│   │   │   ├── health/route.ts           # GET /api/health (planned — uptime monitors)
 │   │   │   ├── webhooks/
 │   │   │   │   ├── stripe/route.ts       # Stripe webhook (book fulfillment + credit purchase)
 │   │   │   │   └── lulu/route.ts         # Lulu webhook
@@ -1273,7 +1312,8 @@ coloringbook/
 │   │   ├── supabase.ts                   # Supabase client
 │   │   ├── stripe.ts                     # Stripe helpers
 │   │   ├── lulu.ts                       # Lulu API client
-│   │   ├── replicate.ts                  # Replicate client
+│   │   ├── convert.ts                    # Conversion orchestrator (Gemini → OpenAI)
+│   │   ├── openai-fallback.ts            # OpenAI line-art fallback
 │   │   ├── pdf.ts                        # PDF generation
 │   │   ├── pricing.ts                    # Price calculation logic
 │   │   └── validators.ts                 # Zod schemas

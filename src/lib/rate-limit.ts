@@ -1,6 +1,6 @@
 /**
  * In-memory rate limiting. PRD §10.3: 10 uploads/min, 20 conversions/hour per user.
- * Resets on cold start; for production consider Upstash Redis.
+ * Resets on cold start; not coordinated across serverless instances.
  */
 
 const uploadCounts = new Map<string, { count: number; resetAt: number }>();
@@ -24,7 +24,10 @@ function getOrCreate(
   return next;
 }
 
-export function checkUploadLimit(userId: string): { ok: boolean; retryAfter?: number } {
+export function checkUploadLimit(userId: string): {
+  ok: boolean;
+  retryAfter?: number;
+} {
   const entry = getOrCreate(uploadCounts, userId, UPLOAD_WINDOW_MS);
   if (entry.count >= UPLOAD_MAX) {
     return { ok: false, retryAfter: Math.ceil((entry.resetAt - Date.now()) / 1000) };
@@ -33,7 +36,10 @@ export function checkUploadLimit(userId: string): { ok: boolean; retryAfter?: nu
   return { ok: true };
 }
 
-export function checkConversionLimit(userId: string): { ok: boolean; retryAfter?: number } {
+export function checkConversionLimit(userId: string): {
+  ok: boolean;
+  retryAfter?: number;
+} {
   const entry = getOrCreate(conversionCounts, userId, CONVERSION_WINDOW_MS);
   if (entry.count >= CONVERSION_MAX) {
     return { ok: false, retryAfter: Math.ceil((entry.resetAt - Date.now()) / 1000) };

@@ -43,6 +43,8 @@ export function PreviewClient({
   trimAspectRatio,
   previewPages,
   pageCount,
+  checkoutEligible,
+  orderId,
 }: {
   bookId: string;
   title: string;
@@ -52,6 +54,8 @@ export function PreviewClient({
   trimAspectRatio: number;
   previewPages: PreviewPageItem[];
   pageCount: number;
+  checkoutEligible: boolean;
+  orderId: string | null;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [zoomOpen, setZoomOpen] = useState(false);
@@ -195,12 +199,28 @@ export function PreviewClient({
           <p className="font-medium text-foreground">{title}</p>
           <p className="text-sm text-muted-foreground">{pageCount} pages</p>
         </div>
-        <Link
-          href={`/dashboard/books/${bookId}/checkout`}
-          className="rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Order My Book
-        </Link>
+        {checkoutEligible ? (
+          <Link
+            href={`/dashboard/books/${bookId}/checkout`}
+            className="rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Order My Book
+          </Link>
+        ) : orderId ? (
+          <Link
+            href={`/dashboard/orders/${orderId}`}
+            className="rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            View order
+          </Link>
+        ) : (
+          <span
+            className="rounded-lg border border-border bg-muted px-6 py-3 text-sm font-medium text-muted-foreground"
+            title="This book has already been ordered or paid."
+          >
+            Already ordered
+          </span>
+        )}
       </div>
     </>
   );

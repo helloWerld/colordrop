@@ -8,7 +8,8 @@ import {
   US_STATE_OPTIONS,
 } from "@/lib/shipping-regions";
 import { shippingAddressSchema } from "@/lib/validators";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "@/components/loading-spinner";
+import { UploadConsentCheckbox } from "@/components/upload-consent-checkbox";
 
 type ShippingOption = {
   id: ShippingLevelId;
@@ -295,6 +296,12 @@ export function CheckoutForm({
         <h2 className="font-heading font-semibold text-foreground">
           Shipping address
         </h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          We ship printed books to the <strong>United States</strong> and{" "}
+          <strong>Canada</strong> only. Book printing and shipping are separate
+          line items in checkout and are not paid with conversion credits—credits
+          are only for turning photos into coloring pages.
+        </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-foreground">
@@ -479,7 +486,7 @@ export function CheckoutForm({
         )}
         {addressComplete && priceLoading && (
           <p className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <LoadingSpinner size="sm" decorative />
             Getting shipping quote…
           </p>
         )}
@@ -514,19 +521,13 @@ export function CheckoutForm({
           </dl>
         )}
 
-        <label className="mt-4 flex items-start gap-3">
-          <input
-            type="checkbox"
-            required
+        <div className="mt-4">
+          <UploadConsentCheckbox
+            id="checkout-book-images-consent"
             checked={confirmRights}
-            onChange={(e) => setConfirmRights(e.target.checked)}
-            className="mt-1 rounded border-input"
+            onCheckedChange={setConfirmRights}
           />
-          <span className="text-sm text-muted-foreground">
-            I confirm I have the right to use these images and they are not
-            copyrighted.
-          </span>
-        </label>
+        </div>
         <p className="mt-4 text-xs text-muted-foreground">
           Note: Coloring books are printed on demand and customized just for
           you.{" "}

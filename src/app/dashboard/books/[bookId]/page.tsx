@@ -58,7 +58,12 @@ export default async function BookEditorPage({
   let initialCover: {
     id: string;
     image_path: string;
-    crop_rect?: { x?: number; y?: number; width?: number; height?: number } | null;
+    crop_rect?: {
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+    } | null;
     rotation_degrees?: number | null;
     cover_url?: string | null;
   } | null = cover ?? null;

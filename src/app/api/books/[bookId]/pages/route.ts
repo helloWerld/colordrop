@@ -1,10 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
+import {
+  BOOK_LOCKED_FOR_EDITING_ERROR,
+  isBookLockedForEditing,
+} from "@/lib/print-snapshot";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ bookId: string }> }
+  { params }: { params: Promise<{ bookId: string }> },
 ) {
   const { userId } = await auth();
   if (!userId) {
@@ -24,6 +28,13 @@ export async function POST(
     return NextResponse.json({ error: "Book not found" }, { status: 404 });
   }
 
+  if (await isBookLockedForEditing(supabase, bookId)) {
+    return NextResponse.json(
+      { error: BOOK_LOCKED_FOR_EDITING_ERROR },
+      { status: 409 },
+    );
+  }
+
   const maxPages = book.page_tier ?? 128;
 
   let body: { saved_conversion_id?: string };
@@ -41,7 +52,10 @@ export async function POST(
       .eq("user_id", userId)
       .single();
     if (!conv) {
-      return NextResponse.json({ error: "Saved conversion not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Saved conversion not found" },
+        { status: 404 },
+      );
     }
     const { count } = await supabase
       .from("pages")
@@ -50,8 +64,10 @@ export async function POST(
     const position = (count ?? 0) + 1;
     if (position > maxPages) {
       return NextResponse.json(
-        { error: `This book has a maximum of ${maxPages} pages (${maxPages} images). Remove a page to add another.` },
-        { status: 400 }
+        {
+          error: `This book has a maximum of ${maxPages} pages (${maxPages} images). Remove a page to add another.`,
+        },
+        { status: 400 },
       );
     }
     const { data: page, error: pageErr } = await supabase
@@ -68,7 +84,10 @@ export async function POST(
       .select()
       .single();
     if (pageErr) {
-      return NextResponse.json({ error: "Failed to add page" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to add page" },
+        { status: 500 },
+      );
     }
     await supabase
       .from("books")
@@ -87,6 +106,6 @@ export async function POST(
 
   return NextResponse.json(
     { error: "Send saved_conversion_id to add from library" },
-    { status: 400 }
+    { status: 400 },
   );
 }
