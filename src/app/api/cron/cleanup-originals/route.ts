@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
+import { ORIGINAL_RETENTION_DAYS } from "@/lib/original-retention";
 import { createServerSupabaseClient } from "@/lib/supabase";
-
-/** How long after fulfillment (shipped/delivered) before original images are deleted. */
-export const ORIGINAL_RETENTION_DAYS = 180;
 
 /**
  * Image retention: delete originals after fulfillment per retention policy.

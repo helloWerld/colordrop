@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { GET, ORIGINAL_RETENTION_DAYS } from "./route";
+import { GET } from "./route";
+import { ORIGINAL_RETENTION_DAYS } from "@/lib/original-retention";
 
 const mockLt = vi.fn(() => Promise.resolve({ data: [], error: null }));
 

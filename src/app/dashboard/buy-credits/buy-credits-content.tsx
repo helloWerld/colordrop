@@ -36,11 +36,7 @@ const PACKS = [
   },
 ];
 
-const SINGLE_FEATURES = [
-  "Pay only for what you need",
-  "Download or print",
-  "Saved to your library",
-];
+const SINGLE_FEATURES = ["Download or print", "Saved to your library"];
 
 interface Props {
   freeRemaining: number;
@@ -108,10 +104,8 @@ function BuyCreditsInner({ freeRemaining, paidCredits }: Props) {
     }
   };
 
-  const decrement = () =>
-    setSingleQuantity((q) => Math.max(1, q - 1));
-  const increment = () =>
-    setSingleQuantity((q) => Math.min(49, q + 1));
+  const decrement = () => setSingleQuantity((q) => Math.max(1, q - 1));
+  const increment = () => setSingleQuantity((q) => Math.min(49, q + 1));
 
   const totalCredits = freeRemaining + paidCredits;
 
@@ -128,8 +122,7 @@ function BuyCreditsInner({ freeRemaining, paidCredits }: Props) {
           Buy Credits
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Use credits to convert photos to coloring pages. Buy 1–49 at $0.99
-          each, or save with packs of 50 or 100.
+          Use credits to convert photos to coloring book pages.
         </p>
       </div>
 
@@ -173,10 +166,25 @@ function BuyCreditsInner({ freeRemaining, paidCredits }: Props) {
           <p className="font-heading text-lg font-semibold text-foreground">
             1–49 credits
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            $0.99 per conversion
+          <p className="mt-2 text-2xl font-bold text-primary">
+            ${(singleQuantity * SINGLE_PRICE_PER_CREDIT).toFixed(2)}
           </p>
+          <p className="mt-1 text-sm text-muted-foreground">$0.99/credit</p>
 
+          <ul className="mt-4 flex-1 space-y-2">
+            {SINGLE_FEATURES.map((f) => (
+              <li
+                key={f}
+                className="flex items-start gap-2 text-sm text-foreground"
+              >
+                <Check
+                  className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                  aria-hidden
+                />
+                {f}
+              </li>
+            ))}
+          </ul>
           <div className="mt-4 flex items-center gap-2">
             <label
               htmlFor="single-qty"
@@ -189,7 +197,7 @@ function BuyCreditsInner({ freeRemaining, paidCredits }: Props) {
                 type="button"
                 onClick={decrement}
                 disabled={singleQuantity <= 1}
-                className="flex h-9 w-9 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
+                className="flex h-6 w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
                 aria-label="Decrease quantity"
               >
                 <Minus className="h-4 w-4" />
@@ -208,39 +216,19 @@ function BuyCreditsInner({ freeRemaining, paidCredits }: Props) {
                     ),
                   )
                 }
-                className="h-9 w-12 border-x border-input bg-transparent text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                className="h-6 w-12 border-x border-input bg-transparent text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
               <button
                 type="button"
                 onClick={increment}
                 disabled={singleQuantity >= 49}
-                className="flex h-9 w-9 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
+                className="flex h-6 w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
                 aria-label="Increase quantity"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
           </div>
-
-          <p className="mt-3 text-2xl font-bold text-primary">
-            ${(singleQuantity * SINGLE_PRICE_PER_CREDIT).toFixed(2)}
-          </p>
-
-          <ul className="mt-4 flex-1 space-y-2">
-            {SINGLE_FEATURES.map((f) => (
-              <li
-                key={f}
-                className="flex items-start gap-2 text-sm text-foreground"
-              >
-                <Check
-                  className="mt-0.5 h-4 w-4 shrink-0 text-primary"
-                  aria-hidden
-                />
-                {f}
-              </li>
-            ))}
-          </ul>
-
           <button
             type="button"
             onClick={handleBuySingle}
@@ -310,9 +298,7 @@ function BuyCreditsInner({ freeRemaining, paidCredits }: Props) {
                   : "border border-primary bg-transparent text-primary hover:bg-primary/10"
               }`}
             >
-              {loading === pkg.id
-                ? "Redirecting…"
-                : `Buy ${pkg.credits} Pack`}
+              {loading === pkg.id ? "Redirecting…" : `Buy ${pkg.credits} Pack`}
             </button>
           </div>
         ))}

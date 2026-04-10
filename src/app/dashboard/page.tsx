@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { getOrCreateUserProfile } from "@/lib/db";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { DeleteAccountSection } from "./delete-account-section";
-import { AddTestCreditsButton } from "./add-test-credits-button";
 import { DraftBookCard } from "./draft-book-card";
+import { getProductByTrimCode } from "@/lib/book-products";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -30,6 +30,11 @@ export default async function DashboardPage() {
         status: string | null;
         created_at: string | null;
         interior_pdf_path: string | null;
+        books: {
+          title: string | null;
+          trim_size: string | null;
+          page_count: number | null;
+        } | null;
       }[]
     | null;
 
@@ -47,14 +52,30 @@ export default async function DashboardPage() {
       supabase
         .from("orders")
         .select(
-          "id, book_id, amount_total, status, created_at, interior_pdf_path",
+          "id, book_id, amount_total, status, created_at, interior_pdf_path, books(title, trim_size, page_count)",
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(10),
     ]);
     draftBooks = booksRes.data ?? null;
-    orders = ordersRes.data ?? null;
+    const rawOrders = ordersRes.data;
+    orders =
+      rawOrders?.map((row) => {
+        const embedded = row.books;
+        const book = Array.isArray(embedded)
+          ? embedded[0] ?? null
+          : embedded;
+        return {
+          id: row.id,
+          book_id: row.book_id,
+          amount_total: row.amount_total,
+          status: row.status,
+          created_at: row.created_at,
+          interior_pdf_path: row.interior_pdf_path,
+          books: book,
+        };
+      }) ?? null;
   } catch (err) {
     const cause =
       err instanceof Error && "cause" in err ? (err as Error).cause : undefined;
@@ -114,7 +135,6 @@ export default async function DashboardPage() {
         >
           Buy Credits →
         </Link>
-        <AddTestCreditsButton isDev={process.env.NODE_ENV === "development"} />
       </section>
 
       <div className="flex flex-wrap gap-4">
@@ -202,22 +222,57 @@ export default async function DashboardPage() {
             {orders.map((o) => (
               <div
                 key={o.id}
-                className="flex min-w-[180px] flex-col rounded-xl border border-border bg-card p-4 shadow-sm hover:bg-muted/50"
+                className="flex min-w-64 flex-col rounded-xl border border-border bg-card p-4 shadow-sm hover:bg-muted/50 relative"
               >
+                <span className="text-sm font-medium text-foreground absolute top-4 right-4">
+                  ${Math.round((o.amount_total ?? 0) / 100)}
+                </span>
                 <span className="text-sm font-medium text-foreground">
                   Order #{o.id.slice(0, 8)}
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  ${Math.round((o.amount_total ?? 0) / 100)} · {o.status}
+                <span className="text-xs text-muted-foreground">
+                  Ordered on{" "}
+                  {o.created_at
+                    ? new Date(o.created_at).toLocaleDateString()
+                    : ""}
                 </span>
-                <div className="mt-2 flex flex-col gap-1">
+                <span className="text-sm font-medium text-foreground mt-4">
+                  {o.books?.title ?? "Untitled"}
+                </span>
+                {o.books?.trim_size && (
+                  <span className="text-sm text-muted-foreground">
+                    Size:{" "}
+                    {o.books.trim_size
+                      ? getProductByTrimCode(o.books.trim_size)?.label + " "
+                      : ""}
+                    {o.books.trim_size
+                      ? "(" +
+                        getProductByTrimCode(o.books.trim_size)?.widthInches +
+                        '"' +
+                        "×" +
+                        getProductByTrimCode(o.books.trim_size)?.heightInches +
+                        '"' +
+                        ")"
+                      : ""}
+                  </span>
+                )}
+                {o.books?.page_count != null && (
+                  <span className="text-sm text-muted-foreground">
+                    Pages: {o.books.page_count}
+                  </span>
+                )}
+
+                <div className=" flex flex-col gap-1">
                   <Link
                     href={`/dashboard/orders/${o.id}`}
-                    className="text-sm font-medium text-primary hover:underline"
+                    className="text-sm font-medium text-primary hover:underline mt-4"
                   >
                     View order →
                   </Link>
                 </div>
+                <span className="text-sm text-muted-foreground capitalize">
+                  Status: {o.status?.split("_").join(" ") ?? ""}
+                </span>
               </div>
             ))}
           </div>

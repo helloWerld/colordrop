@@ -7,7 +7,6 @@ import type { OrderStripePaymentDetails } from "@/lib/order-stripe-details";
 import type { BookProduct } from "@/lib/book-products";
 import { luluDashboardPrintJobLink } from "@/lib/lulu";
 import { SHIPPING_LEVELS } from "@/lib/pricing";
-import { stripeDashboardPaymentDeepLink } from "@/lib/stripe";
 
 export type OrderDetailOrderRow = {
   id: string;
@@ -119,10 +118,6 @@ export function OrderDetailContent({
     currency: currency === "USD" ? "USD" : currency,
   });
 
-  const stripeDashboardUrl = stripeDashboardPaymentDeepLink({
-    checkoutSessionId: order.stripe_checkout_session_id,
-    paymentIntentId: order.stripe_payment_intent_id,
-  });
   const luluDashboardUrl =
     showLuluDashboardLink && typeof order.lulu_print_job_id === "number"
       ? luluDashboardPrintJobLink(order.lulu_print_job_id)
