@@ -1,14 +1,37 @@
 /**
  * OpenAI image edit fallback used when Gemini fails.
+ *
+ * Model env: see `getOpenAIImageConversionModel` in `@/lib/conversion-model-env`
+ * (block comment lists all supported `images.edit` model IDs and doc links).
  */
 
 import OpenAI from "openai";
+import { getOpenAIImageConversionModel } from "@/lib/conversion-model-env";
+import { lineartPromptWithDimensions } from "@/lib/lineart-prompt";
+import { resolveOpenAIImageEditSize } from "@/lib/openai-edit-size";
 
-const LINEART_PROMPT =
-  "Convert this exact image into a coloring book page. Keep the same composition and subject. Output outline-only: thin black lines on white or transparent background. No solid black fills, no large black areas, no shading, no color—only clear outlines suitable for coloring.";
+function getMimeFromContentType(header: string | null): string {
+  if (!header) return "image/png";
+  const base = header.split(";")[0].trim().toLowerCase();
+  if (base === "image/png" || base === "image/jpeg" || base === "image/webp")
+    return base;
+  return "image/png";
+}
+
+function mimeToFilename(mime: string): string {
+  if (mime === "image/jpeg") return "image.jpg";
+  if (mime === "image/webp") return "image.webp";
+  return "image.png";
+}
+
+export type LineartSourceDimensions = {
+  width: number;
+  height: number;
+};
 
 export async function runLineartOpenAIFallback(
   sourceImageUrl: string,
+  dimensions: LineartSourceDimensions,
 ): Promise<{
   imageUrl: string;
   providerCostCents: number | null;
@@ -18,19 +41,30 @@ export async function runLineartOpenAIFallback(
   if (!key) throw new Error("OPENAI_API_KEY is not set");
 
   const openai = new OpenAI({ apiKey: key });
-  const prompt = LINEART_PROMPT;
+  const model = getOpenAIImageConversionModel();
+  const prompt =
+    lineartPromptWithDimensions(dimensions.width, dimensions.height) +
+    " White or transparent background only.";
 
   const imageRes = await fetch(sourceImageUrl);
   if (!imageRes.ok) throw new Error("Failed to fetch image for OpenAI");
   const imageBuffer = await imageRes.arrayBuffer();
-  const imageFile = new File([imageBuffer], "image.png", { type: "image/png" });
+  const mimeType = getMimeFromContentType(imageRes.headers.get("content-type"));
+  const imageFile = new File([imageBuffer], mimeToFilename(mimeType), {
+    type: mimeType,
+  });
+
+  const size = resolveOpenAIImageEditSize(
+    dimensions.width,
+    dimensions.height,
+  );
 
   const response = await openai.images.edit({
-    model: "gpt-image-1",
+    model,
     image: imageFile,
-    prompt: prompt + " White or transparent background only.",
+    prompt,
     n: 1,
-    size: "1024x1024",
+    size,
   });
 
   const data = response.data?.[0];
@@ -41,7 +75,8 @@ export async function runLineartOpenAIFallback(
     : data.b64_json
       ? `data:image/png;base64,${data.b64_json}`
       : null;
-  if (!outputImageUrl) throw new Error("OpenAI response missing url and b64_json");
+  if (!outputImageUrl)
+    throw new Error("OpenAI response missing url and b64_json");
 
   const usage =
     response && typeof response === "object" && "usage" in response

@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminOrderDetailPage({
   params,
 }: {
-  params: { orderId: string };
+  params: Promise<{ orderId: string }>;
 }) {
+  const { orderId } = await params;
   const supabase = createServerSupabaseClient();
   const { data: order, error } = await supabase
     .from("orders")
@@ -43,7 +44,7 @@ export default async function AdminOrderDetailPage({
       error_message
     `,
     )
-    .eq("id", params.orderId)
+    .eq("id", orderId)
     .single();
 
   if (error || !order) notFound();

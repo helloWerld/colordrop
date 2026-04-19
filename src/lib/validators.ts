@@ -10,19 +10,12 @@ import { normalizeUsStateCodeForLulu } from "./us-state";
 export const conversionContextEnum = z.enum(["one_off", "book"]);
 export type ConversionContext = z.infer<typeof conversionContextEnum>;
 
-/** POST /api/pages/convert — must match client; enforced server-side. */
+/** POST /api/pages/convert — enforced server-side. */
 export const convertBodySchema = z.object({
   storage_path: z.string().min(1),
   conversion_context: conversionContextEnum,
   book_id: z.string().uuid().optional(),
-  upload_consent: z.literal(true, {
-    message:
-      "You must confirm the upload agreement (rights, Terms & Privacy) before converting.",
-  }),
 });
-
-/** FormData field for POST /api/upload and /api/upload/cover */
-export const UPLOAD_CONSENT_FORM_FIELD = "upload_consent" as const;
 
 export const uuidSchema = z.string().uuid();
 

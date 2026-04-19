@@ -2,22 +2,28 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
-import { getProductByTrimCode } from "@/lib/book-products";
+import {
+  getCustomerBindingLabel,
+  getProductByTrimCode,
+} from "@/lib/book-products";
 import {
   Crop,
   Eye,
   Image,
   Info,
   Pencil,
+  PencilLine,
   Save,
   Trash,
   Upload,
+  Wand2,
 } from "lucide-react";
 import { CoverPrintPreview } from "@/components/cover-print-preview";
 import { PageTrimUniformPreview } from "@/components/page-trim-uniform-preview";
 import { CropRotateEditor } from "@/components/crop-rotate-editor";
 import { Highlighter } from "@/components/ui/highlighter";
 import { UploadConsentCheckbox } from "@/components/upload-consent-checkbox";
+import { formatCustomerUsdWholeDollarsFromCents } from "@/lib/customer-price-display";
 
 type Credits = {
   free_remaining: number;
@@ -96,9 +102,9 @@ export function BookEditorClient({
   const [addingSavedId, setAddingSavedId] = useState<string | null>(null);
   const [removePageId, setRemovePageId] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
-  const [estimatedTotalCents, setEstimatedTotalCents] = useState<number | null>(
-    null,
-  );
+  const [estimatedPrintingCents, setEstimatedPrintingCents] = useState<
+    number | null
+  >(null);
   const [priceError, setPriceError] = useState<string | null>(null);
   const [editPageId, setEditPageId] = useState<string | null>(null);
   const [cropCoverOpen, setCropCoverOpen] = useState(false);
@@ -109,7 +115,6 @@ export function BookEditorClient({
   );
   const [, setSavingEdit] = useState(false);
   const [uploadConsentPage, setUploadConsentPage] = useState(false);
-  const [coverUploadConsent, setCoverUploadConsent] = useState(false);
 
   const fetchCredits = useCallback(async () => {
     const res = await fetch("/api/credits");
@@ -146,9 +151,9 @@ export function BookEditorClient({
     const res = await fetch(`/api/books/${bookId}/price?shipping_level=MAIL`);
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      setEstimatedTotalCents(data.totalCents ?? null);
+      setEstimatedPrintingCents(data.printingOnlyCents ?? null);
     } else {
-      setEstimatedTotalCents(null);
+      setEstimatedPrintingCents(null);
       setPriceError(
         data.error ??
           "Pricing is temporarily unavailable. Try reloading the page or contact support.",
@@ -239,13 +244,11 @@ export function BookEditorClient({
 
   const handleStartConvert = async () => {
     if (!previewFile || isConverting || totalCredits === 0) return;
+    if (pages.length >= pageTier) return;
     if (!uploadConsentPage) {
-      setConvertError(
-        "Please confirm the upload agreement before converting.",
-      );
+      setConvertError("Please confirm the upload agreement before converting.");
       return;
     }
-    if (pages.length >= pageTier) return;
 
     setIsConverting(true);
     setConversionStep("uploading");
@@ -259,7 +262,6 @@ export function BookEditorClient({
     try {
       const formData = new FormData();
       formData.append("file", previewFile);
-      formData.append("upload_consent", "true");
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: formData,
@@ -283,7 +285,6 @@ export function BookEditorClient({
           storage_path: path,
           conversion_context: "book",
           book_id: bookId,
-          upload_consent: true,
         }),
       });
 
@@ -327,13 +328,6 @@ export function BookEditorClient({
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!coverUploadConsent) {
-      setCoverUploadError(
-        "Please confirm the upload agreement before uploading a cover image.",
-      );
-      e.target.value = "";
-      return;
-    }
 
     setIsUploadingCover(true);
     setCoverUploadError(null);
@@ -343,7 +337,6 @@ export function BookEditorClient({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("book_id", bookId);
-      formData.append("upload_consent", "true");
       const res = await fetch("/api/upload/cover", {
         method: "POST",
         body: formData,
@@ -569,14 +562,6 @@ export function BookEditorClient({
             </>
           )}
         </p>
-        <div className="mt-4 max-w-xl">
-          <UploadConsentCheckbox
-            id={`cover-upload-consent-${bookId}`}
-            checked={coverUploadConsent}
-            onCheckedChange={setCoverUploadConsent}
-            disabled={isUploadingCover}
-          />
-        </div>
         {(coverUploadMessage || coverUploadError) && (
           <div
             className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
@@ -621,9 +606,7 @@ export function BookEditorClient({
                   </button>
                   <label
                     className={`text-center cursor-pointer w-full flex flex-row justify-center items-center gap-2 flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isUploadingCover || !coverUploadConsent
-                        ? "pointer-events-none opacity-60"
-                        : ""
+                      isUploadingCover ? "pointer-events-none opacity-60" : ""
                     }`}
                   >
                     <Upload className="h-4 w-4" />
@@ -632,7 +615,7 @@ export function BookEditorClient({
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       className="hidden"
-                      disabled={isUploadingCover || !coverUploadConsent}
+                      disabled={isUploadingCover}
                       onChange={handleCoverUpload}
                     />
                   </label>
@@ -662,9 +645,7 @@ export function BookEditorClient({
           <div className="mt-2 space-y-3 py-2">
             <label
               className={` cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex flex-row justify-center items-center gap-2 ${
-                isUploadingCover || !coverUploadConsent
-                  ? "pointer-events-none opacity-60"
-                  : ""
+                isUploadingCover ? "pointer-events-none opacity-60" : ""
               }`}
             >
               <Upload className="h-4 w-4" />
@@ -673,7 +654,7 @@ export function BookEditorClient({
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
-                disabled={isUploadingCover || !coverUploadConsent}
+                disabled={isUploadingCover}
                 onChange={handleCoverUpload}
               />
             </label>
@@ -724,8 +705,8 @@ export function BookEditorClient({
             }
             className="w-full flex flex-row justify-center items-center gap-2 flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Upload className="h-4 w-4" />
-            Upload Photo
+            <Wand2 className="h-4 w-4" />
+            Convert a Photo
           </button>
 
           <button
@@ -756,15 +737,11 @@ export function BookEditorClient({
 
           <div className="mt-4">
             {credits != null && (
-              <div className="flex flex-row items-center justify-between my-4 rounded-xl border border-primary bg-muted/20 px-3 py-1 w-full">
+              <div className="flex flex-row items-center justify-between my-4 rounded-xl border border-primary bg-primary/10 px-3 py-1 w-full">
                 <p className=" text-base font-bold text-primary">
-                  {credits.free_remaining} free credits left
+                  {totalCredits} credits available
                 </p>
-                {credits.paid_credits > 0 && (
-                  <p className=" text-sm text-muted-foreground">
-                    Plus {credits.paid_credits} paid
-                  </p>
-                )}
+
                 <a
                   href="/dashboard/buy-credits"
                   target="_blank"
@@ -847,6 +824,11 @@ export function BookEditorClient({
                     <p className="mt-2 text-sm text-amber-600 dark:text-amber-500">
                       This conversion uses 1 credit.
                     </p>
+                    {convertError && (
+                      <p className="mt-1 text-sm text-destructive">
+                        {convertError}
+                      </p>
+                    )}
                     <div className="mt-4 max-w-xl">
                       <UploadConsentCheckbox
                         id={`book-page-upload-consent-${bookId}`}
@@ -855,11 +837,6 @@ export function BookEditorClient({
                         disabled={isConverting}
                       />
                     </div>
-                    {convertError && (
-                      <p className="mt-1 text-sm text-destructive">
-                        {convertError}
-                      </p>
-                    )}
                     <div className="mt-3 flex flex-row gap-2">
                       <button
                         type="button"
@@ -947,7 +924,14 @@ export function BookEditorClient({
         <h2 className="font-heading font-semibold text-foreground">
           Pages ({pages.length} of {pageTier})
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-foreground">
+          <span className="font-medium">{pageTier} images</span>
+          <span className="text-muted-foreground"> · </span>
+          <span className="text-muted-foreground">
+            {getCustomerBindingLabel(pageTier)}
+          </span>
+        </p>
+        <p className="mt-3 text-sm text-muted-foreground">
           {product
             ? `Book size: ${product.label} ${product.widthInches}" × ${product.heightInches}". `
             : "Book size: —. "}
@@ -1126,7 +1110,7 @@ export function BookEditorClient({
       <h3 className="text-xl font-heading font-bold text-foreground">
         {stepTitle(5, "Step 5: Preview your book")}
       </h3>
-      <div className="sticky bottom-0 flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-lg max-w-3xl w-full z-30">
+      <div className="sticky bottom-0 flex flex-col items-start justify-between rounded-2xl border border-border bg-card p-4 shadow-lg max-w-3xl w-full z-30 gap-4">
         <div>
           <p className="font-medium text-foreground">
             {pages.length} of {pageTier} pages
@@ -1143,17 +1127,18 @@ export function BookEditorClient({
               </button>
             </p>
           )}
-          {estimatedTotalCents !== null && !priceError && (
+          {estimatedPrintingCents !== null && !priceError && (
             <p className="mt-1 text-sm text-muted-foreground">
-              Est. total: ${Math.round(estimatedTotalCents / 100)} (Standard
-              shipping)
+              Est. printing:{" "}
+              {formatCustomerUsdWholeDollarsFromCents(estimatedPrintingCents)}.
+              Shipping extra at checkout; depends on address and method.
             </p>
           )}
         </div>
         {canPreview ? (
           <Link
             href={`/dashboard/books/${bookId}/preview`}
-            className="rounded-lg flex flex-row justify-center items-center gap-2 bg-primary px-6 py-2 font-medium text-primary-foreground hover:bg-primary/90 whitespace-nowrap"
+            className="rounded-lg flex flex-row justify-center items-center gap-2 bg-primary px-6 py-2 font-medium text-primary-foreground hover:bg-primary/90 whitespace-nowrap w-full"
           >
             <Eye className="h-4 w-4" />
             Preview My Book

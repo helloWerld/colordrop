@@ -258,6 +258,9 @@ export type LuluShippingAddress = {
   phone_number: string;
 };
 
+/** Shipping levels supported by checkout and Lulu cost-calculation for books. */
+export type LuluBookShippingLevel = "MAIL" | "PRIORITY_MAIL" | "EXPEDITED";
+
 export type CreatePrintJobParams = {
   contactEmail: string;
   externalId: string;
@@ -266,7 +269,7 @@ export type CreatePrintJobParams = {
   coverPdfUrl: string;
   podPackageId: string;
   shippingAddress: LuluShippingAddress;
-  shippingLevel: "MAIL" | "PRIORITY_MAIL" | "EXPEDITED" | "GROUND" | "EXPRESS";
+  shippingLevel: LuluBookShippingLevel;
   quantity?: number;
   productionDelayMinutes?: number;
 };
@@ -368,7 +371,7 @@ export type PrintJobCostResult = {
 export async function getPrintJobCostCalculation(params: {
   podPackageId: string;
   pageCount: number;
-  shippingOption: "MAIL" | "PRIORITY_MAIL" | "EXPEDITED";
+  shippingOption: LuluBookShippingLevel;
   shippingAddress: LuluCostAddress;
 }): Promise<PrintJobCostResult> {
   const base = getBaseUrl();

@@ -11,13 +11,14 @@ export const dynamic = "force-dynamic";
 export default async function AdminUserDetailPage({
   params,
 }: {
-  params: { userId: string };
+  params: Promise<{ userId: string }>;
 }) {
+  const { userId } = await params;
   const supabase = createServerSupabaseClient();
 
   let data: Awaited<ReturnType<typeof getAdminUserCockpitData>>;
   try {
-    data = await getAdminUserCockpitData(supabase, params.userId);
+    data = await getAdminUserCockpitData(supabase, userId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message === "USER_NOT_FOUND") notFound();

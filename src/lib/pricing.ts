@@ -1,9 +1,16 @@
 /**
- * Customer-facing price: Lulu line + fulfillment × (1 + BOOK_MARKUP_PERCENT/100),
- * plus shipping × (1 + SHIPPING_MARKUP_PERCENT/100), with the sum rounded up to
- * the next whole dollar, and proportional book vs shipping split for display
- * (book line rounded to nearest dollar; shipping is the remainder).
+ * Customer-facing price: each Lulu bucket is rounded up to the next whole dollar
+ * (print = line + fulfillment, then shipping), then BOOK_MARKUP_PERCENT /
+ * SHIPPING_MARKUP_PERCENT are applied. The customer total is the sum of those
+ * marked amounts, rounded up to the next whole dollar. Book vs shipping on the
+ * receipt uses the marked amounts’ ratio (book line rounded to nearest dollar;
+ * shipping is the remainder).
  * Conversion credits do not apply toward book purchases.
+ *
+ * **Single source of truth:** book customer totals must come from
+ * `calculateBookPriceFromTrimCodeAsync` (used by checkout and price APIs) or,
+ * if you already have Lulu cent components, `computeCustomerPricingFromLuluCents`
+ * only. Do not reimplement markup or dollar rounding elsewhere.
  */
 
 import type { PageTier, TrimSizeId } from "./book-products";
@@ -17,6 +24,7 @@ import type { BookProduct } from "./book-products";
 import {
   getDefaultCostCalcAddress,
   getPrintJobCostCalculation,
+  type LuluBookShippingLevel,
   type LuluCostAddress,
 } from "./lulu";
 
@@ -143,7 +151,7 @@ export type BookCheckoutPricing = {
 };
 
 export type BookPricingResult =
-  | { ok: true; pricing: BookCheckoutPricing }
+  | { ok: true; pricing: BookCheckoutPricing; printingOnlyCents: number }
   | { ok: false; error: string };
 
 /**
@@ -161,10 +169,13 @@ export function computeCustomerPricingFromLuluCents(
   const luluTotalCostCents = bookAndFulfillmentCents + shippingCents;
   if (luluTotalCostCents <= 0) return null;
 
+  const bookLuluRoundedCents = ceilToDollar(bookAndFulfillmentCents);
+  const shippingLuluRoundedCents = ceilToDollar(shippingCents);
+
   const markedBookCents =
-    bookAndFulfillmentCents * (1 + bookMarkupPercent / 100);
+    bookLuluRoundedCents * (1 + bookMarkupPercent / 100);
   const markedShippingCents =
-    shippingCents * (1 + shippingMarkupPercent / 100);
+    shippingLuluRoundedCents * (1 + shippingMarkupPercent / 100);
   const rawTotalCents = markedBookCents + markedShippingCents;
   if (rawTotalCents <= 0) return null;
 
@@ -189,13 +200,31 @@ export function computeCustomerPricingFromLuluCents(
   };
 }
 
+/**
+ * Customer-facing printing + binding only: (line + fulfillment) rounded up to
+ * the next dollar, then × book markup, then rounded up to whole dollars again.
+ * Excludes Lulu shipping (used for marketing / estimates).
+ */
+export function computePrintingOnlyCustomerCents(
+  lineItemCents: number,
+  fulfillmentCents: number,
+  bookMarkupPercent: number
+): number | null {
+  const baseCents = lineItemCents + fulfillmentCents;
+  if (baseCents <= 0) return null;
+  const roundedBaseCents = ceilToDollar(baseCents);
+  const markedCents = roundedBaseCents * (1 + bookMarkupPercent / 100);
+  if (markedCents <= 0) return null;
+  return ceilToDollar(markedCents);
+}
+
 export const SHIPPING_LEVELS = [
-  { id: "MAIL" as const, label: "Standard", days: "7–14", cents: 400 },
-  { id: "PRIORITY_MAIL" as const, label: "Priority", days: "5–7", cents: 600 },
-  { id: "EXPEDITED" as const, label: "Expedited", days: "2–3", cents: 1000 },
+  { id: "MAIL" as const, label: "Standard", days: "7–14" },
+  { id: "PRIORITY_MAIL" as const, label: "Priority", days: "5–7" },
+  { id: "EXPEDITED" as const, label: "Expedited", days: "2–3" },
 ];
 
-export type ShippingLevelId = "MAIL" | "PRIORITY_MAIL" | "EXPEDITED";
+export type ShippingLevelId = LuluBookShippingLevel;
 
 const INVALID_TRIM_TIER_ERROR =
   "Invalid book size or page count for pricing.";
@@ -227,6 +256,18 @@ export async function calculateBookPriceFromTrimCodeAsync(
 
   const bookMarkupPercent = getBookMarkupPercent();
   const shippingMarkupPercent = getShippingMarkupPercent();
+  const printingOnlyCents = computePrintingOnlyCustomerCents(
+    costResult.lineItemCents,
+    costResult.fulfillmentCents,
+    bookMarkupPercent
+  );
+  if (printingOnlyCents == null) {
+    return {
+      ok: false,
+      error:
+        "Printing cost could not be determined. Try reloading the page or contact support.",
+    };
+  }
   const pricing = computeCustomerPricingFromLuluCents(
     costResult.lineItemCents,
     costResult.fulfillmentCents,
@@ -241,7 +282,7 @@ export async function calculateBookPriceFromTrimCodeAsync(
         "Printing cost could not be determined. Try reloading the page or contact support.",
     };
   }
-  return { ok: true, pricing };
+  return { ok: true, pricing, printingOnlyCents };
 }
 
 /** Trim size and tier options for UI. */

@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase";
 import {
   calculateBookPriceFromTrimCodeAsync,
   SHIPPING_LEVELS,
+  type ShippingLevelId,
 } from "@/lib/pricing";
 import { isLuluSandbox, shippingFormToLuluCostAddress } from "@/lib/lulu";
 import { bookPricePostSchema } from "@/lib/validators";
@@ -63,7 +64,7 @@ export async function GET(
     );
   }
 
-  const { pricing } = result;
+  const { pricing, printingOnlyCents } = result;
   return NextResponse.json({
     page_count: pageCount,
     page_tier: pageTier,
@@ -73,6 +74,7 @@ export async function GET(
     bookCents: pricing.bookCents,
     shippingCents: pricing.shippingCents,
     totalCents: pricing.totalCents,
+    printingOnlyCents,
     luluLineItemCents: pricing.luluLineItemCents,
     luluFulfillmentCents: pricing.luluFulfillmentCents,
     luluShippingCents: pricing.luluShippingCents,
@@ -128,19 +130,25 @@ export async function POST(
   const pageTier = book.page_tier ?? 24;
   const trimCode = book.trim_size ?? "";
 
-  const result = await calculateBookPriceFromTrimCodeAsync(
-    trimCode,
-    pageTier,
-    shippingLevel,
-    luluAddress
+  const levelIds = SHIPPING_LEVELS.map((l) => l.id) as ShippingLevelId[];
+  const results = await Promise.all(
+    levelIds.map((level) =>
+      calculateBookPriceFromTrimCodeAsync(
+        trimCode,
+        pageTier,
+        level,
+        luluAddress
+      )
+    )
   );
 
-  if (!result.ok) {
+  const failed = results.find((r) => !r.ok);
+  if (failed && !failed.ok) {
     return NextResponse.json(
       {
         error:
           "Pricing is temporarily unavailable. Try reloading the page or contact support.",
-        detail: result.error,
+        detail: failed.error,
         page_count: pageCount,
         page_tier: pageTier,
         trim_size: trimCode,
@@ -152,16 +160,41 @@ export async function POST(
     );
   }
 
-  const { pricing } = result;
+  const shipping_quotes = Object.fromEntries(
+    levelIds.map((id, i) => {
+      const row = results[i];
+      if (!row.ok) throw new Error("unreachable");
+      const { pricing } = row;
+      return [
+        id,
+        {
+          bookCents: pricing.bookCents,
+          shippingCents: pricing.shippingCents,
+          totalCents: pricing.totalCents,
+        },
+      ];
+    })
+  ) as Record<
+    ShippingLevelId,
+    { bookCents: number; shippingCents: number; totalCents: number }
+  >;
+
+  const selectedIndex = levelIds.indexOf(shippingLevel);
+  const selected = results[selectedIndex >= 0 ? selectedIndex : 0];
+  if (!selected.ok) throw new Error("unreachable");
+  const { pricing, printingOnlyCents } = selected;
+
   return NextResponse.json({
     page_count: pageCount,
     page_tier: pageTier,
     trim_size: trimCode,
     shipping_level: shippingLevel,
     shipping_options: SHIPPING_LEVELS,
+    shipping_quotes,
     bookCents: pricing.bookCents,
     shippingCents: pricing.shippingCents,
     totalCents: pricing.totalCents,
+    printingOnlyCents,
     luluLineItemCents: pricing.luluLineItemCents,
     luluFulfillmentCents: pricing.luluFulfillmentCents,
     luluShippingCents: pricing.luluShippingCents,

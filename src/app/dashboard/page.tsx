@@ -63,9 +63,7 @@ export default async function DashboardPage() {
     orders =
       rawOrders?.map((row) => {
         const embedded = row.books;
-        const book = Array.isArray(embedded)
-          ? embedded[0] ?? null
-          : embedded;
+        const book = Array.isArray(embedded) ? (embedded[0] ?? null) : embedded;
         return {
           id: row.id,
           book_id: row.book_id,
@@ -183,9 +181,9 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap gap-4">
         <Link
           href="/dashboard/saved-pages"
-          className="text-sm font-medium text-primary hover:underline"
+          className="text-base font-medium hover:underline bg-primary rounded-lg px-4 py-2 text-primary-foreground"
         >
-          My Saved Pages →
+          View Your Saved Pages →
         </Link>
       </div>
 

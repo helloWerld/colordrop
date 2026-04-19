@@ -4,16 +4,20 @@ import { SHIPPING_LEVELS } from "@/lib/pricing";
 import type { PageTier, TrimSizeId } from "@/lib/book-products";
 import {
   BOOK_PRODUCTS,
+  getCustomerBindingExplanation,
   PAGE_TIERS,
+  PAGE_TIERS_PERFECT_BOUND,
+  PAGE_TIERS_STAPLED,
   TRIM_SIZES,
 } from "@/lib/book-products";
+import { formatCustomerUsdWholeDollarsFromCents } from "@/lib/customer-price-display";
 import { getCachedMarketingBookPriceMatrix } from "@/lib/marketing-book-prices";
 import { marketingPageMetadata } from "@/lib/marketing-metadata";
 
 export const metadata = marketingPageMetadata({
   title: "Pricing",
   description:
-    "ColorDrop pricing: credits for AI photo-to-coloring-page conversion, book print options, and shipping. Compare credit packs and printed book sizes.",
+    "ColorDrop pricing: credits for AI photo-to-coloring-page conversion and printed book printing (binding). Shipping is quoted at checkout by address and method.",
   canonicalPath: "/pricing",
 });
 
@@ -80,8 +84,9 @@ export default async function PricingPage() {
         One credit equals one photo converted into a coloring page. New accounts
         get 3 free credits—no card required. Buy more credits in the packages
         below when you need them. Credits are for conversions only; printed
-        books are priced separately (printing + shipping at checkout). We ship
-        printed books to the United States and Canada only.
+        books list a printing price here; shipping is added at checkout and
+        depends on your address and shipping method. We ship printed books to
+        the United States and Canada only.
       </p>
 
       <h2 className="font-heading mt-12 text-xl font-semibold text-foreground">
@@ -135,9 +140,11 @@ export default async function PricingPage() {
           Printed coloring books
         </h2>
         <p className="mt-3 text-muted-foreground">
-          Each page = one image. Books are printed double-sided. Book price
-          depends on size and page count; shipping is calculated at checkout.
-          Shipping is available to US and Canadian addresses only.
+          Each page = one image. Books are printed double-sided. The table shows
+          printing and binding only ( before shipping). Shipping depends on your
+          delivery address and the shipping method you choose; it is calculated
+          at checkout. Shipping is available to US and Canadian addresses only.{" "}
+          {getCustomerBindingExplanation()}
         </p>
         {bookPricesError ? (
           <p
@@ -150,12 +157,39 @@ export default async function PricingPage() {
           <div className="mt-6 overflow-x-auto">
             <table className="w-full min-w-[480px] text-left text-sm">
               <thead>
+                <tr className="border-b border-border/70">
+                  <th
+                    rowSpan={2}
+                    className="align-bottom pb-2 pr-3 font-semibold text-foreground"
+                  >
+                    Size
+                  </th>
+                  <th
+                    colSpan={PAGE_TIERS_STAPLED.length}
+                    className="border-l border-border bg-muted/20 pb-2 text-center text-xs font-semibold uppercase tracking-wide text-foreground"
+                  >
+                    Stapled binding
+                  </th>
+                  <th
+                    colSpan={PAGE_TIERS_PERFECT_BOUND.length}
+                    className="border-l border-border bg-muted/20 pb-2 text-center text-xs font-semibold uppercase tracking-wide text-foreground"
+                  >
+                    Perfect-bound
+                  </th>
+                </tr>
                 <tr className="border-b border-border">
-                  <th className="pb-2 font-semibold text-foreground">Size</th>
-                  {PAGE_TIERS.map((tier) => (
+                  {PAGE_TIERS_STAPLED.map((tier) => (
                     <th
                       key={tier}
-                      className="pb-2 font-medium text-muted-foreground"
+                      className="border-l border-border/70 pb-2 pl-2 font-medium text-muted-foreground first:border-l-0 first:pl-0"
+                    >
+                      {tier} pages
+                    </th>
+                  ))}
+                  {PAGE_TIERS_PERFECT_BOUND.map((tier) => (
+                    <th
+                      key={tier}
+                      className="border-l border-border/70 pb-2 pl-2 font-medium text-muted-foreground"
                     >
                       {tier} pages
                     </th>
@@ -175,8 +209,19 @@ export default async function PricingPage() {
                         {label}
                       </td>
                       {PAGE_TIERS.map((tier) => (
-                        <td key={tier} className="py-3 text-muted-foreground">
-                          ${Math.round(row[tier] / 100)}
+                        <td
+                          key={tier}
+                          className={`py-3 text-muted-foreground ${
+                            tier !== PAGE_TIERS_STAPLED[0]
+                              ? `border-l pl-2 ${
+                                  tier === PAGE_TIERS_PERFECT_BOUND[0]
+                                    ? "border-border"
+                                    : "border-border/70"
+                                }`
+                              : ""
+                          }`}
+                        >
+                          {formatCustomerUsdWholeDollarsFromCents(row[tier])}
                         </td>
                       ))}
                     </tr>
@@ -187,14 +232,14 @@ export default async function PricingPage() {
           </div>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
-          Shipping is added at checkout and depends on service level (e.g.
-          Standard {SHIPPING_LEVELS[0]?.days} days, Priority{" "}
-          {SHIPPING_LEVELS[1]?.days} days). Create a book to see your exact
-          total.
+          Typical delivery windows by service level include Standard (
+          {SHIPPING_LEVELS[0]?.days} days), Priority ({SHIPPING_LEVELS[1]?.days}{" "}
+          days), and Expedited ({SHIPPING_LEVELS[2]?.days} days)—actual cost and
+          dates are quoted at checkout for your address.
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Book prices reflect live print costs plus our margin; figures refresh
-          about every hour on this page.
+          Printing prices reflect live print costs plus our margin; figures
+          refresh about every hour on this page.
         </p>
         <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start gap-2">

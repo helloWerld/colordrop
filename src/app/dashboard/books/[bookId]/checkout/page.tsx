@@ -139,6 +139,7 @@ export default async function CheckoutPage({
         bookTitle={book.title ?? "My Coloring Book"}
         bookSizeLabel={bookSizeLabel}
         pageCount={pageCount}
+        pageTier={book.page_tier ?? 24}
         luluSandbox={isLuluSandbox()}
         shippingOptions={SHIPPING_LEVELS}
       />

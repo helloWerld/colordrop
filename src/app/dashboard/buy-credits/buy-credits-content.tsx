@@ -132,16 +132,10 @@ function BuyCreditsInner({ freeRemaining, paidCredits }: Props) {
         <span className="text-lg font-bold text-primary">
           {totalCredits} credit{totalCredits !== 1 ? "s" : ""}
         </span>
-        {freeRemaining > 0 && paidCredits > 0 && (
-          <span className="text-xs text-muted-foreground">
-            ({freeRemaining} free + {paidCredits} paid)
-          </span>
-        )}
-        {freeRemaining > 0 && paidCredits === 0 && (
-          <span className="text-xs text-muted-foreground">
-            ({freeRemaining} free)
-          </span>
-        )}
+
+        <span className="text-xs text-muted-foreground">
+          ({freeRemaining} free + {paidCredits} paid)
+        </span>
       </div>
 
       {showPurchaseSuccess && (

@@ -41,7 +41,7 @@ Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui, Clerk, Supabase, Gemin
 
 - **Upload returns 500 or "Bucket not found"** — Create the required Storage buckets in Supabase Dashboard: **Storage** → **New bucket** → create `originals`, `outlines`, `covers`, and `pdfs` (public or with policies that allow your app to read/write). Or run `npm run storage:create-buckets`.
 
-- **"Conversion failed" when adding a page or converting a photo** — Image conversion uses Gemini (Nano Banana) first, then OpenAI as fallback. Set `GEMINI_API_KEY` in `.env.local` (from [Google AI Studio](https://aistudio.google.com/apikey)) and/or `OPENAI_API_KEY` (from [OpenAI](https://platform.openai.com/api-keys)). In production, `OPENAI_API_KEY` is required so fallback is always available. Check the terminal running `npm run dev` for the exact error (e.g. invalid key or provider outage).
+- **"Conversion failed" when adding a page or converting a photo** — Image conversion uses Gemini (Nano Banana) and/or OpenAI depending on `IMAGE_CONVERSION_PROVIDER` in `.env.local` (`auto` when unset: Gemini first, OpenAI fallback; `gemini`: Gemini only; `openai`: OpenAI only). Set `GEMINI_API_KEY` (from [Google AI Studio](https://aistudio.google.com/apikey)) and/or `OPENAI_API_KEY` (from [OpenAI](https://platform.openai.com/api-keys)) as required for that mode. In production, `OPENAI_API_KEY` is required when the mode is `auto` (default) so fallback is available; Gemini-only production is valid with `IMAGE_CONVERSION_PROVIDER=gemini` and `GEMINI_API_KEY`. Check the terminal running `npm run dev` for the exact error (e.g. invalid key or provider outage).
 
 ## Getting Started
 

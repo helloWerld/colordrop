@@ -1,14 +1,25 @@
 /**
  * PDF generation for ColorDrop: interior (coloring pages) and cover.
  * Interior: trim-size aware; one PDF page per outline image; supports crop and rotation per page.
- * Cover: dimensions from Lulu API, single page.
+ * Cover: dimensions from Lulu API; single spread (back branding | spine | front).
  */
 
+import { readFile } from "fs/promises";
+import path from "path";
 import { PDFDocument, degrees } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProductByTrimCode } from "@/lib/book-products";
 
 const LEGACY_TRIM_POINTS = 612; // 8.5" at 72 pt/in for legacy books
+
+const BACK_COVER_IMAGE_PATH = path.join(
+  process.cwd(),
+  "public",
+  "backcover_image.png",
+);
+/** Max rendered width for back-cover branding (PDF points, 72 pt/in). */
+const BACK_COVER_MAX_WIDTH_IN = 4;
+const BACK_COVER_MAX_WIDTH_POINTS = BACK_COVER_MAX_WIDTH_IN * 72;
 
 export type PageRow = {
   outline_image_path: string;
@@ -102,7 +113,7 @@ export async function generateInteriorPdf(
 
 /**
  * Generate cover PDF from cover image. Dimensions in points (1/72 inch).
- * Lulu expects a single-page PDF; back cover is blank for MVP.
+ * Lulu expects a single-page spread: static back-cover branding, blank spine, user front.
  * Supports JPEG and PNG (cover uploads use jpg/png/webp; webp not embedded by pdf-lib).
  * Applies crop_rect (normalized 0-1) and rotation_degrees when provided (same order as interior: crop then rotate).
  */
@@ -138,6 +149,39 @@ export async function generateCoverPdf(
   const frontY = 0;
   const panelWidthPoints = frontWidthPoints;
   const panelHeightPoints = heightPoints;
+
+  let backPngBytes: Uint8Array;
+  try {
+    backPngBytes = await readFile(BACK_COVER_IMAGE_PATH);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `Back cover asset missing or unreadable at ${BACK_COVER_IMAGE_PATH}: ${msg}`,
+    );
+  }
+  const backPng = await doc.embedPng(backPngBytes);
+  const backImgW = backPng.width;
+  const backImgH = backPng.height;
+  // Cap width at 4" (and panel); uniform scale keeps aspect ratio.
+  const backMaxWidthPoints = Math.min(
+    panelWidthPoints,
+    BACK_COVER_MAX_WIDTH_POINTS,
+  );
+  const backScale = Math.min(
+    backMaxWidthPoints / backImgW,
+    panelHeightPoints / backImgH,
+  );
+  const backDrawW = backImgW * backScale;
+  const backDrawH = backImgH * backScale;
+  const backDrawX = (panelWidthPoints - backDrawW) / 2;
+  const backDrawY = (panelHeightPoints - backDrawH) / 2;
+  page.drawImage(backPng, {
+    x: backDrawX,
+    y: backDrawY,
+    width: backDrawW,
+    height: backDrawH,
+  });
+
   const isJpeg =
     coverImagePath.toLowerCase().endsWith(".jpg") ||
     coverImagePath.toLowerCase().endsWith(".jpeg") ||

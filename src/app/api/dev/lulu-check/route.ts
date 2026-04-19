@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
 import {
-  getPrintJobCostCalculation,
   getDefaultCostCalcAddress,
   isLuluSandbox,
   getLuluApiBaseUrl,
   getLuluCredentialDiagnostics,
 } from "@/lib/lulu";
-import { getPodPackageId } from "@/lib/book-products";
-import {
-  getBookMarkupPercent,
-  getShippingMarkupPercent,
-  computeCustomerPricingFromLuluCents,
-} from "@/lib/pricing";
+import { BOOK_PRODUCTS } from "@/lib/book-products";
+import { calculateBookPriceFromTrimCodeAsync } from "@/lib/pricing";
+
+/** Same sample as the Lulu dev popover (“large, 32p, MAIL”). */
+const SAMPLE_TRIM_SIZE_ID = "large" as const;
+const SAMPLE_PAGE_TIER = 32;
+const SAMPLE_SHIPPING_LEVEL = "MAIL" as const;
 
 /**
  * Development only: verify Lulu keys and show sample cost + margin breakdown.
+ * Uses the same pricing path as checkout and `/api/books/.../price`.
  * GET /api/dev/lulu-check
  */
 export async function GET() {
@@ -43,50 +44,33 @@ export async function GET() {
   }
 
   try {
-    const trimSizeId = "large" as const;
-    const pageTier = 32;
-    const shippingLevel = "MAIL" as const;
     const address = getDefaultCostCalcAddress();
-    const podPackageId = getPodPackageId(trimSizeId, pageTier);
-
-    const result = await getPrintJobCostCalculation({
-      podPackageId,
-      pageCount: pageTier,
-      shippingOption: shippingLevel,
-      shippingAddress: address,
-    });
-
-    const bookMarkupPercent = getBookMarkupPercent();
-    const shippingMarkupPercent = getShippingMarkupPercent();
-    const pricing = computeCustomerPricingFromLuluCents(
-      result.lineItemCents,
-      result.fulfillmentCents,
-      result.shippingCents,
-      bookMarkupPercent,
-      shippingMarkupPercent
+    const trimCode = BOOK_PRODUCTS[SAMPLE_TRIM_SIZE_ID].trimCode;
+    const priceResult = await calculateBookPriceFromTrimCodeAsync(
+      trimCode,
+      SAMPLE_PAGE_TIER,
+      SAMPLE_SHIPPING_LEVEL,
+      address
     );
 
-    if (!pricing) {
+    if (!priceResult.ok) {
       return NextResponse.json({
         ok: false,
-        error: "Lulu returned zero or negative total cost.",
+        error: priceResult.error,
         keysSet: true,
         diagnostics,
         luluSandbox: diagnostics.luluUseSandbox,
         luluApiBaseUrl: getLuluApiBaseUrl(),
-        sample: { trimSize: trimSizeId, pageTier, shippingLevel },
-        luluCost: {
-          lineItemCents: result.lineItemCents,
-          fulfillmentCents: result.fulfillmentCents,
-          shippingCents: result.shippingCents,
-          totalCostCents:
-            result.lineItemCents +
-            result.fulfillmentCents +
-            result.shippingCents,
+        sample: {
+          trimSize: SAMPLE_TRIM_SIZE_ID,
+          pageTier: SAMPLE_PAGE_TIER,
+          shippingLevel: SAMPLE_SHIPPING_LEVEL,
         },
+        ...(hint ? { hint } : {}),
       });
     }
 
+    const { pricing, printingOnlyCents } = priceResult;
     return NextResponse.json({
       ok: true,
       keysSet: true,
@@ -94,16 +78,17 @@ export async function GET() {
       luluSandbox: diagnostics.luluUseSandbox,
       luluApiBaseUrl: getLuluApiBaseUrl(),
       sample: {
-        trimSize: trimSizeId,
-        pageTier,
-        shippingLevel,
+        trimSize: SAMPLE_TRIM_SIZE_ID,
+        pageTier: SAMPLE_PAGE_TIER,
+        shippingLevel: SAMPLE_SHIPPING_LEVEL,
       },
       luluCost: {
-        lineItemCents: result.lineItemCents,
-        fulfillmentCents: result.fulfillmentCents,
-        shippingCents: result.shippingCents,
+        lineItemCents: pricing.luluLineItemCents,
+        fulfillmentCents: pricing.luluFulfillmentCents,
+        shippingCents: pricing.luluShippingCents,
         totalCostCents: pricing.luluTotalCostCents,
       },
+      printingOnlyCents,
       bookMarkupPercent: pricing.bookMarkupPercent,
       shippingMarkupPercent: pricing.shippingMarkupPercent,
       marginMarkupCents: pricing.marginMarkupCents,

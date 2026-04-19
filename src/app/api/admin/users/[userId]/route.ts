@@ -9,14 +9,15 @@ const MAX_REASON_LENGTH = 500;
 
 export async function GET(
   _request: Request,
-  { params }: { params: { userId: string } },
+  { params }: { params: Promise<{ userId: string }> },
 ) {
   const admin = await requireAdminApi();
   if (admin instanceof NextResponse) return admin;
 
+  const { userId } = await params;
   const supabase = createServerSupabaseClient();
   try {
-    const payload = await getAdminUserCockpitData(supabase, params.userId);
+    const payload = await getAdminUserCockpitData(supabase, userId);
     return NextResponse.json(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -29,10 +30,12 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { userId: string } },
+  { params }: { params: Promise<{ userId: string }> },
 ) {
   const admin = await requireAdminApi();
   if (admin instanceof NextResponse) return admin;
+
+  const { userId } = await params;
 
   let body: unknown;
   try {
@@ -83,7 +86,7 @@ export async function POST(
   const { data: profile, error: selectError } = await supabase
     .from("user_profiles")
     .select("user_id, free_conversions_remaining, paid_credits")
-    .eq("user_id", params.userId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (selectError) {
@@ -102,7 +105,7 @@ export async function POST(
       free_conversions_remaining: next,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", params.userId);
+    .eq("user_id", userId);
 
   if (updateError) {
     console.error("admin add free credits", updateError);
@@ -115,7 +118,7 @@ export async function POST(
   console.info(
     JSON.stringify({
       event: "admin_free_credits_grant",
-      targetUserId: params.userId,
+      targetUserId: userId,
       adminUserId: admin.userId,
       adminEmail: admin.email,
       creditsAdded: creditsRaw,
@@ -131,7 +134,7 @@ export async function POST(
         severity: "info",
         status: "success",
         payload: {
-          targetUserId: params.userId,
+          targetUserId: userId,
           adminUserId: admin.userId,
           adminEmail: admin.email,
           creditsAdded: creditsRaw,

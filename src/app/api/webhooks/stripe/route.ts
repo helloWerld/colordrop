@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { getStripe, getStripeWebhookSecret } from "@/lib/stripe";
 import { createServerSupabaseClient } from "@/lib/supabase";
-import { runFulfillment } from "@/lib/fulfillment";
-import { getEmailForUserId, sendOrderConfirmation } from "@/lib/email";
+import { enqueueBookOrderFulfillmentAfter } from "@/lib/book-order-fulfillment-after";
+import { shouldEnqueueFulfillment } from "@/lib/book-order-fulfillment-gate";
 import { handleBookOrderInsertFailure } from "@/lib/stripe-book-order-webhook";
 import { buildPrintSnapshotFromDb } from "@/lib/print-snapshot";
 import { logIntegrationEvent } from "@/lib/integration-events";
@@ -137,22 +137,43 @@ export async function POST(request: Request) {
     if (meta.type === "book_order" && meta.bookId && meta.userId) {
       const { data: existingOrder } = await supabase
         .from("orders")
-        .select("id")
+        .select("id, lulu_print_job_id, status, amount_total")
         .eq("stripe_checkout_session_id", session.id)
         .single();
       if (existingOrder) {
-        await logIntegrationEvent(
-          {
-            provider: "stripe",
-            eventType: "checkout.session.completed.idempotent",
-            severity: "info",
-            status: "ignored",
+        if (shouldEnqueueFulfillment(existingOrder)) {
+          await logIntegrationEvent(
+            {
+              provider: "stripe",
+              eventType: "checkout.session.completed.idempotent_fulfillment_requeued",
+              severity: "info",
+              status: "requeued",
+              orderId: existingOrder.id,
+              bookId: meta.bookId,
+              stripeSessionId: session.id,
+              stripePaymentIntentId,
+            },
+            supabase,
+          );
+          enqueueBookOrderFulfillmentAfter(existingOrder.id, {
             bookId: meta.bookId,
-            stripeSessionId: session.id,
-            stripePaymentIntentId,
-          },
-          supabase,
-        );
+            userId: meta.userId,
+            amountTotalCents: existingOrder.amount_total ?? 0,
+          });
+        } else {
+          await logIntegrationEvent(
+            {
+              provider: "stripe",
+              eventType: "checkout.session.completed.idempotent",
+              severity: "info",
+              status: "ignored",
+              bookId: meta.bookId,
+              stripeSessionId: session.id,
+              stripePaymentIntentId,
+            },
+            supabase,
+          );
+        }
         return NextResponse.json({ received: true });
       }
       const amountTotal = session.amount_total ?? 0;
@@ -228,31 +249,11 @@ export async function POST(request: Request) {
           .from("books")
           .update({ status: "paid", updated_at: new Date().toISOString() })
           .eq("id", meta.bookId);
-        runFulfillment(order.id).catch((e) => {
-          console.error("Fulfillment failed for order", order.id, e);
+        enqueueBookOrderFulfillmentAfter(order.id, {
+          bookId: meta.bookId,
+          userId: meta.userId,
+          amountTotalCents: amountTotal,
         });
-        (async () => {
-          try {
-            const { data: book } = await supabase
-              .from("books")
-              .select("title, page_count")
-              .eq("id", meta.bookId)
-              .single();
-            const email = await getEmailForUserId(meta.userId);
-            if (email && book) {
-              await sendOrderConfirmation({
-                to: email,
-                orderId: order.id,
-                orderShortId: order.id.slice(0, 8),
-                amountTotalCents: amountTotal,
-                bookTitle: book.title ?? "My Coloring Book",
-                pageCount: book.page_count ?? 0,
-              });
-            }
-          } catch (e) {
-            console.error("Order confirmation email failed", e);
-          }
-        })();
       } else {
         await logIntegrationEvent(
           {

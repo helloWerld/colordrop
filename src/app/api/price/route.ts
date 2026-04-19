@@ -69,11 +69,12 @@ export async function GET(request: Request) {
     );
   }
 
-  const { pricing } = result;
+  const { pricing, printingOnlyCents } = result;
   return NextResponse.json({
     bookCents: pricing.bookCents,
     shippingCents: pricing.shippingCents,
     totalCents: pricing.totalCents,
+    printingOnlyCents,
     luluLineItemCents: pricing.luluLineItemCents,
     luluFulfillmentCents: pricing.luluFulfillmentCents,
     luluShippingCents: pricing.luluShippingCents,

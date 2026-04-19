@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ceilToDollar,
   computeCustomerPricingFromLuluCents,
+  computePrintingOnlyCustomerCents,
   roundToNearestDollar,
 } from "./pricing";
 
@@ -39,7 +40,10 @@ describe("computeCustomerPricingFromLuluCents", () => {
     expect(p!.luluTotalCostCents).toBe(luluTotal);
     expect(p!.bookMarkupPercent).toBe(50);
     expect(p!.shippingMarkupPercent).toBe(50);
-    const expectedTotal = ceilToDollar(luluTotal * 1.5);
+    // Print + fulfillment → $15, shipping → $4 after per-bucket dollar ceil; then 50% each; total $28.50 → $29.00
+    const expectedTotal = ceilToDollar(
+      ceilToDollar(1500) * 1.5 + ceilToDollar(301) * 1.5
+    );
     expect(p!.totalCents).toBe(expectedTotal);
     expect(p!.marginMarkupCents).toBe(expectedTotal - luluTotal);
     expect(p!.bookCents + p!.shippingCents).toBe(p!.totalCents);
@@ -77,5 +81,27 @@ describe("computeCustomerPricingFromLuluCents", () => {
     expect(
       computeCustomerPricingFromLuluCents(-100, 0, 0, 50, 50)
     ).toBeNull();
+  });
+});
+
+describe("computePrintingOnlyCustomerCents", () => {
+  it("applies book markup and ceils to whole dollars", () => {
+    expect(computePrintingOnlyCustomerCents(1000, 500, 50)).toBe(
+      ceilToDollar(2250)
+    );
+  });
+
+  it("returns null when line + fulfillment is zero", () => {
+    expect(computePrintingOnlyCustomerCents(0, 0, 50)).toBeNull();
+  });
+
+  it("returns null when line + fulfillment is negative", () => {
+    expect(computePrintingOnlyCustomerCents(-100, 50, 0)).toBeNull();
+  });
+
+  it("ignores shipping (same line+fulfillment as different shipping quotes)", () => {
+    const line = 800;
+    const fulfillment = 200;
+    expect(computePrintingOnlyCustomerCents(line, fulfillment, 0)).toBe(1000);
   });
 });

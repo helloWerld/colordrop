@@ -5,7 +5,10 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { generateInteriorPdf, generateCoverPdf } from "@/lib/pdf";
-import { getCoverDimensions } from "@/lib/lulu";
+import {
+  getCoverDimensions,
+  type LuluBookShippingLevel,
+} from "@/lib/lulu";
 import {
   getPodPackageId,
   getTrimSizeIdFromCode,
@@ -290,8 +293,7 @@ export async function runFulfillment(
     })
     .eq("id", orderId);
 
-  const shippingLevel =
-    (o.shipping_level as CreatePrintJobShippingLevel) ?? "MAIL";
+  const shippingLevel = normalizeOrderShippingLevel(o.shipping_level);
 
   try {
     const luluId = await createPrintJobWithRetries(
@@ -347,12 +349,14 @@ export async function runFulfillment(
   }
 }
 
-type CreatePrintJobShippingLevel =
-  | "MAIL"
-  | "PRIORITY_MAIL"
-  | "GROUND"
-  | "EXPEDITED"
-  | "EXPRESS";
+function normalizeOrderShippingLevel(
+  raw: string | null | undefined,
+): LuluBookShippingLevel {
+  if (raw === "MAIL" || raw === "PRIORITY_MAIL" || raw === "EXPEDITED") {
+    return raw;
+  }
+  return "MAIL";
+}
 
 async function fail(
   supabase: ReturnType<typeof createServerSupabaseClient>,

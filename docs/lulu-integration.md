@@ -14,8 +14,8 @@ This app uses Lulu for print cost quotes, cover dimensions, and print-job submis
 
 ## Code map
 
-- **SKUs (`pod_package_id`)** — [`src/lib/book-products.ts`](../src/lib/book-products.ts): trim sizes, saddle stitch vs perfect bind IDs, `getPodPackageId(trimSizeId, pageTier)`.
-- **Pricing** — [`src/lib/pricing.ts`](../src/lib/pricing.ts): `print-job-cost-calculations` + `BOOK_MARKUP_PERCENT` / `SHIPPING_MARKUP_PERCENT` on Lulu components.
+- **SKUs (`pod_package_id`)** — [`src/lib/book-products.ts`](../src/lib/book-products.ts): trim sizes, saddle stitch vs perfect bind IDs, `getPodPackageId(trimSizeId, pageTier)`. IDs use Lulu’s **dotted** modular format (`[Trim].[Ink].[Quality].[Binding].[Paper].[Finish]`); see the migration notice in [openapi_public.yml](https://api.lulu.com/api-docs/openapi-specs/openapi_public.yml).
+- **Pricing** — [`src/lib/pricing.ts`](../src/lib/pricing.ts): `print-job-cost-calculations` + `BOOK_MARKUP_PERCENT` / `SHIPPING_MARKUP_PERCENT` on Lulu components; `computePrintingOnlyCustomerCents` for marketing/estimates (print + binding only, no shipping in that dollar amount).
 - **HTTP client** — [`src/lib/lulu.ts`](../src/lib/lulu.ts): token, cover dimensions, cost calculation, create print job.
 - **Fulfillment** — [`src/lib/fulfillment.ts`](../src/lib/fulfillment.ts): derives `podPackageId` with `getTrimSizeIdFromCode` + `getPodPackageId` (same rule as pricing), validates page counts, then uploads PDFs and creates the print job.
 - **Checkout geography** — [`src/lib/shipping-regions.ts`](../src/lib/shipping-regions.ts): curated `US` / `CA` only in the UI; `country_code` and `state_code` sent to Lulu must match their OpenAPI rules (subdivisions required for US and CA). Lulu does not publish a full shippable-country enum in the spec; broader delivery is limited in practice by carrier service (see KB: [countries exempt from delivery](https://help.api.lulu.com/en/support/solutions/articles/64000254641-are-there-any-countries-exempt-from-delivery-)). Add countries only after verifying `print-job-cost-calculations` (and print jobs in sandbox) for real addresses.
@@ -40,6 +40,12 @@ Interior and cover PDFs live in the private **`pdfs`** bucket. At fulfillment ti
 ## Fulfillment fee
 
 Per-order fulfillment fees are included in the cost-calculation response; see [Per Order Fulfillment Fee](https://help.api.lulu.com/en/support/solutions/articles/64000265990-per-order-fulfillment-fee) (API KB).
+
+## Book pricing: GET vs POST, cache, and `printingOnlyCents`
+
+- **GET** [`/api/books/[bookId]/price`](../src/app/api/books/[bookId]/price/route.ts) and **GET** [`/api/price`](../src/app/api/price/route.ts) call Lulu with [`getDefaultCostCalcAddress()`](../src/lib/lulu.ts) when no buyer address is supplied. [`fetchLuluCostParts`](../src/lib/pricing.ts) **caches** Lulu’s line/fulfillment/shipping breakdown for **1 hour** (in-memory, per process) keyed by trim + page tier + shipping level. **POST** book price and **POST** [`/api/checkout`](../src/app/api/checkout/route.ts) pass the **customer’s shipping address**, bypass that cache, and drive the **full** checkout split (`bookCents` / `shippingCents` / `totalCents` from `computeCustomerPricingFromLuluCents`). So **full totals** from GET can differ from checkout because of address and cache.
+- **`printingOnlyCents`** is **printing and binding only**: `(Lulu line item + Lulu fulfillment) × (1 + BOOK_MARKUP_PERCENT/100)`, rounded **up to the next whole dollar**. Lulu’s cost API still requires a `shipping_address` and `shipping_option`; the **shipping** line in the response is **not** included in `printingOnlyCents`. For a given product (trim + tier), print costs are normally the same regardless of destination; use **`printingOnlyCents`** for marketing tables and in-editor estimates so they are not confused with shipped totals.
+- **Checkout** continues to charge Stripe using the **full** combined pricing path with the buyer’s address.
 
 ## Customer defect policy (Lulu)
 

@@ -3,8 +3,15 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BOOK_PRODUCTS, PAGE_TIERS, TRIM_SIZES } from "@/lib/book-products";
+import {
+  BOOK_PRODUCTS,
+  getCustomerBindingLabel,
+  PAGE_TIERS_PERFECT_BOUND,
+  PAGE_TIERS_STAPLED,
+  TRIM_SIZES,
+} from "@/lib/book-products";
 import type { TrimSizeId } from "@/lib/book-products";
+import { formatCustomerUsdWholeDollarsFromCents } from "@/lib/customer-price-display";
 
 export default function NewBookPage() {
   const router = useRouter();
@@ -26,8 +33,8 @@ export default function NewBookPage() {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (res.ok && data?.totalCents != null) {
-          setStartingAtCents(data.totalCents);
+        if (res.ok && data?.printingOnlyCents != null) {
+          setStartingAtCents(data.printingOnlyCents);
           setPriceError(null);
         } else {
           setStartingAtCents(null);
@@ -146,51 +153,101 @@ export default function NewBookPage() {
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <h2 className="font-medium text-foreground">Number of images</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Books are printed double-sided (e.g. 12 images = 6 pages)
+            Books are printed double-sided (e.g. 12 images = 6 physical sheets)
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {PAGE_TIERS.map((tier) => (
-              <label
-                key={tier}
-                className={`flex flex-col gap-1cursor-pointer rounded-lg border-2 px-4 py-2 text-sm font-medium transition-colors group ${
-                  pageTier === tier
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border hover:border-primary/50"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="page_tier"
-                  value={tier}
-                  checked={pageTier === tier}
-                  onChange={() => setPageTier(tier)}
-                  className="sr-only"
-                />
-                {tier} images{" "}
-                <span
-                  className={`${pageTier === tier ? "text-primary-foreground" : "text-muted-foreground"} text-xs`}
-                >
-                  {" "}
-                  ({tier / 2} pages)
-                </span>
-              </label>
+          <div className="mt-4 space-y-5">
+            {(
+              [
+                {
+                  title: "Stapled binding",
+                  subtitle: "Up to 48 images",
+                  tiers: PAGE_TIERS_STAPLED,
+                },
+                {
+                  title: "Perfect-bound (paperback spine)",
+                  subtitle: "64 images or more",
+                  tiers: PAGE_TIERS_PERFECT_BOUND,
+                },
+              ] as const
+            ).map((group) => (
+              <div key={group.title}>
+                <p className="text-sm font-medium text-foreground">
+                  {group.title}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {group.subtitle}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {group.tiers.map((tier) => (
+                    <label
+                      key={tier}
+                      className={`flex cursor-pointer flex-col gap-0.5 rounded-lg border-2 px-4 py-2 text-sm font-medium transition-colors ${
+                        pageTier === tier
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="page_tier"
+                        value={tier}
+                        checked={pageTier === tier}
+                        onChange={() => setPageTier(tier)}
+                        className="sr-only"
+                      />
+                      <span>{tier} images</span>
+                      <span
+                        className={
+                          pageTier === tier
+                            ? "text-xs text-muted-foreground"
+                            : "text-xs text-muted-foreground"
+                        }
+                      >
+                        ({tier / 2} sheets)
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <div className=" space-y-1">
-            <p className="text-lg font-medium text-foreground">
+            <p className="text-xl font-medium text-foreground">
               {loadingPrice
-                ? "Print and ship (Standard): loading…"
+                ? "Calculating price…"
                 : startingAtCents != null
-                  ? `Print and ship (Standard): Starting at $${Math.round(startingAtCents / 100)}.00 USD`
-                  : "Print and ship: —"}
+                  ? `Printing and binding: ${formatCustomerUsdWholeDollarsFromCents(startingAtCents)}`
+                  : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Printing and binding only; shipping is quoted separately at
+              checkout.
             </p>
             {priceError && !loadingPrice && (
               <p className="text-sm text-destructive" role="alert">
                 {priceError}
               </p>
             )}
+            <p className="text-sm text-muted-foreground pt-4">
+              Current Selection:
+            </p>
+            <div className="text-sm text-foreground capitalize p-2  px-4 bg-primary/5 rounded-lg border border-primary w-full flex flex-col md:flex-row items-start justify-between gap-2">
+              <p className="whitespace-nowrap">
+                <span className="font-medium">Page Size:</span>{" "}
+                {BOOK_PRODUCTS[trimSizeId].label} (
+                {`${BOOK_PRODUCTS[trimSizeId].widthInches}" × ${BOOK_PRODUCTS[trimSizeId].heightInches}"`})
+              </p>
+              <p className="whitespace-nowrap">
+                <span className="font-medium">Page Tier:</span> {pageTier}{" "}
+                images ({pageTier / 2} sheets)
+              </p>
+              <p className="whitespace-nowrap">
+                <span className="font-medium">Binding:</span>{" "}
+                {getCustomerBindingLabel(pageTier)}
+              </p>
+            </div>
           </div>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -199,7 +256,7 @@ export default function NewBookPage() {
           disabled={loading}
           className="w-full rounded-lg bg-primary py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          {loading ? "Opening editor…" : "Continue"}
+          {loading ? "Opening editor…" : "Build Your Coloring Book →"}
         </button>
       </form>
     </div>

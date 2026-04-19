@@ -10,29 +10,32 @@ import {
 import { shippingAddressSchema } from "@/lib/validators";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { UploadConsentCheckbox } from "@/components/upload-consent-checkbox";
+import { getCustomerBindingLabel } from "@/lib/book-products";
+import { formatCustomerUsdWholeDollarsFromCents } from "@/lib/customer-price-display";
 
 type ShippingOption = {
   id: ShippingLevelId;
   label: string;
   days: string;
-  cents: number;
 };
 
-function buildQuoteKey(
-  level: ShippingLevelId,
-  f: {
-    name: string;
-    line1: string;
-    line2: string;
-    city: string;
-    state: string;
-    postal_code: string;
-    country: string;
-    phone: string;
-  },
-): string {
+type LevelQuote = {
+  bookCents: number;
+  shippingCents: number;
+  totalCents: number;
+};
+
+function buildAddressQuoteKey(f: {
+  name: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  phone: string;
+}): string {
   return JSON.stringify({
-    level,
     name: f.name.trim(),
     line1: f.line1.trim(),
     line2: f.line2.trim(),
@@ -76,6 +79,7 @@ export function CheckoutForm({
   bookTitle,
   bookSizeLabel,
   pageCount,
+  pageTier,
   luluSandbox,
   shippingOptions,
 }: {
@@ -83,15 +87,14 @@ export function CheckoutForm({
   bookTitle: string;
   bookSizeLabel: string;
   pageCount: number;
+  pageTier: number;
   luluSandbox: boolean;
   shippingOptions: ShippingOption[];
 }) {
   const [shippingLevel, setShippingLevel] = useState<ShippingLevelId>("MAIL");
-  const [price, setPrice] = useState({
-    bookCents: 0,
-    shippingCents: 0,
-    totalCents: 0,
-  });
+  const [shippingQuotesByLevel, setShippingQuotesByLevel] = useState<
+    Record<ShippingLevelId, LevelQuote> | null
+  >(null);
   const [form, setForm] = useState({
     name: "",
     line1: "",
@@ -106,7 +109,9 @@ export function CheckoutForm({
   const [error, setError] = useState<string | null>(null);
   const [priceFetchError, setPriceFetchError] = useState<string | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
-  const [matchedQuoteKey, setMatchedQuoteKey] = useState<string | null>(null);
+  const [matchedAddressQuoteKey, setMatchedAddressQuoteKey] = useState<
+    string | null
+  >(null);
 
   const addressComplete = useMemo(() => {
     return shippingAddressSchema.safeParse({
@@ -130,21 +135,48 @@ export function CheckoutForm({
     form.phone,
   ]);
 
-  const currentQuoteKey = useMemo(
-    () => buildQuoteKey(shippingLevel, form),
-    [shippingLevel, form],
+  const currentAddressQuoteKey = useMemo(
+    () => buildAddressQuoteKey(form),
+    [
+      form.name,
+      form.line1,
+      form.line2,
+      form.city,
+      form.state,
+      form.postal_code,
+      form.country,
+      form.phone,
+    ],
   );
+
+  const price = useMemo((): LevelQuote => {
+    if (!shippingQuotesByLevel) {
+      return { bookCents: 0, shippingCents: 0, totalCents: 0 };
+    }
+    return (
+      shippingQuotesByLevel[shippingLevel] ?? {
+        bookCents: 0,
+        shippingCents: 0,
+        totalCents: 0,
+      }
+    );
+  }, [shippingQuotesByLevel, shippingLevel]);
+
+  const quotesAddressInSync =
+    matchedAddressQuoteKey !== null &&
+    matchedAddressQuoteKey === currentAddressQuoteKey &&
+    shippingQuotesByLevel !== null;
 
   const showPricing =
     addressComplete &&
-    matchedQuoteKey !== null &&
-    matchedQuoteKey === currentQuoteKey &&
+    quotesAddressInSync &&
+    !priceLoading &&
     price.totalCents > 0;
 
   useEffect(() => {
     if (!addressComplete) {
-      setMatchedQuoteKey(null);
-      setPrice({ bookCents: 0, shippingCents: 0, totalCents: 0 });
+      setMatchedAddressQuoteKey(null);
+      setShippingQuotesByLevel(null);
       setPriceFetchError(null);
       setPriceLoading(false);
       return;
@@ -158,30 +190,29 @@ export function CheckoutForm({
         const res = await fetch(`/api/books/${bookId}/price`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(shippingBody(shippingLevel, form)),
+          // shipping_level only selects which top-level cents mirror; all tiers return in shipping_quotes.
+          body: JSON.stringify(shippingBody("MAIL", form)),
         });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (res.ok) {
-          setPrice({
-            bookCents: data.bookCents,
-            shippingCents: data.shippingCents,
-            totalCents: data.totalCents,
-          });
-          setMatchedQuoteKey(buildQuoteKey(shippingLevel, form));
+        if (res.ok && data.shipping_quotes) {
+          setShippingQuotesByLevel(data.shipping_quotes);
+          setMatchedAddressQuoteKey(buildAddressQuoteKey(form));
         } else {
+          setShippingQuotesByLevel(null);
+          setMatchedAddressQuoteKey(null);
           setPriceFetchError(
             data.error ??
               "Could not get a shipping quote. Try again or contact support.",
           );
-          setMatchedQuoteKey(null);
         }
       } catch {
         if (!cancelled) {
+          setShippingQuotesByLevel(null);
+          setMatchedAddressQuoteKey(null);
           setPriceFetchError(
             "Could not get a shipping quote. Try again or contact support.",
           );
-          setMatchedQuoteKey(null);
         }
       } finally {
         if (!cancelled) setPriceLoading(false);
@@ -203,7 +234,6 @@ export function CheckoutForm({
     form.postal_code,
     form.country,
     form.phone,
-    shippingLevel,
   ]);
 
   const handleShippingChange = (level: ShippingLevelId) => {
@@ -219,28 +249,26 @@ export function CheckoutForm({
         const res = await fetch(`/api/books/${bookId}/price`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(shippingBody(shippingLevel, form)),
+          body: JSON.stringify(shippingBody("MAIL", form)),
         });
         const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          setPrice({
-            bookCents: data.bookCents,
-            shippingCents: data.shippingCents,
-            totalCents: data.totalCents,
-          });
-          setMatchedQuoteKey(buildQuoteKey(shippingLevel, form));
+        if (res.ok && data.shipping_quotes) {
+          setShippingQuotesByLevel(data.shipping_quotes);
+          setMatchedAddressQuoteKey(buildAddressQuoteKey(form));
         } else {
+          setShippingQuotesByLevel(null);
+          setMatchedAddressQuoteKey(null);
           setPriceFetchError(
             data.error ??
               "Could not get a shipping quote. Try again or contact support.",
           );
-          setMatchedQuoteKey(null);
         }
       } catch {
+        setShippingQuotesByLevel(null);
+        setMatchedAddressQuoteKey(null);
         setPriceFetchError(
           "Could not get a shipping quote. Try again or contact support.",
         );
-        setMatchedQuoteKey(null);
       } finally {
         setPriceLoading(false);
       }
@@ -298,9 +326,7 @@ export function CheckoutForm({
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           We ship printed books to the <strong>United States</strong> and{" "}
-          <strong>Canada</strong> only. Book printing and shipping are separate
-          line items in checkout and are not paid with conversion credits—credits
-          are only for turning photos into coloring pages.
+          <strong>Canada</strong> only.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -441,27 +467,42 @@ export function CheckoutForm({
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           {addressComplete
-            ? "Amounts for each option appear in the order summary after we quote shipping for your address."
+            ? "Each option shows your quoted shipping for this address. The order summary below shows book, shipping, and total for your selected method."
             : "Enter your full shipping address to see shipping options and prices."}
         </p>
         <div className="mt-4 space-y-2">
-          {shippingOptions.map((opt) => (
-            <label
-              key={opt.id}
-              className="flex cursor-pointer items-center gap-4 rounded-lg border border-border p-3"
-            >
-              <input
-                type="radio"
-                name="shipping"
-                checked={shippingLevel === opt.id}
-                onChange={() => handleShippingChange(opt.id)}
-              />
-              <span className="font-medium">{opt.label}</span>
-              <span className="text-sm text-muted-foreground">
-                {opt.days} days
-              </span>
-            </label>
-          ))}
+          {shippingOptions.map((opt) => {
+            const q = shippingQuotesByLevel?.[opt.id];
+            const showRowPrice =
+              quotesAddressInSync &&
+              !priceLoading &&
+              q &&
+              q.totalCents > 0;
+            return (
+              <label
+                key={opt.id}
+                className="flex w-full cursor-pointer items-center justify-between gap-4 rounded-lg border border-border p-3"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <input
+                    type="radio"
+                    name="shipping"
+                    checked={shippingLevel === opt.id}
+                    onChange={() => handleShippingChange(opt.id)}
+                  />
+                  <span className="font-medium">{opt.label}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {opt.days} days
+                  </span>
+                </span>
+                <span className="shrink-0 font-semibold text-foreground tabular-nums">
+                  {showRowPrice
+                    ? formatCustomerUsdWholeDollarsFromCents(q.shippingCents)
+                    : "—"}
+                </span>
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -476,6 +517,9 @@ export function CheckoutForm({
           <p className="mt-1 text-sm text-muted-foreground">
             {bookSizeLabel} · {pageCount} images ({pageCount / 2} double-sided
             pages)
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {getCustomerBindingLabel(pageTier)}
           </p>
         </div>
         {!addressComplete && (
@@ -508,15 +552,21 @@ export function CheckoutForm({
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Book</span>
-              <span>${Math.round(price.bookCents / 100)}</span>
+              <span>
+                {formatCustomerUsdWholeDollarsFromCents(price.bookCents)}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Shipping</span>
-              <span>${Math.round(price.shippingCents / 100)}</span>
+              <span>
+                {formatCustomerUsdWholeDollarsFromCents(price.shippingCents)}
+              </span>
             </div>
             <div className="flex justify-between border-t border-border pt-2 font-medium">
               <span>Total</span>
-              <span>${Math.round(price.totalCents / 100)}</span>
+              <span>
+                {formatCustomerUsdWholeDollarsFromCents(price.totalCents)}
+              </span>
             </div>
           </dl>
         )}

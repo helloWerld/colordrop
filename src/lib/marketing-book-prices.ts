@@ -4,7 +4,7 @@ import type { PageTier, TrimSizeId } from "@/lib/book-products";
 import { BOOK_PRODUCTS, PAGE_TIERS, TRIM_SIZES } from "@/lib/book-products";
 
 /**
- * Cached book-only prices (MAIL) for the marketing pricing table.
+ * Cached printing-and-binding-only prices (MAIL) for the marketing pricing table.
  * Revalidates every hour; failures on cold miss throw (page shows error UI).
  */
 export const getCachedMarketingBookPriceMatrix = unstable_cache(
@@ -24,13 +24,13 @@ export const getCachedMarketingBookPriceMatrix = unstable_cache(
             if (!result.ok) {
               throw new Error(result.error);
             }
-            matrix[trimId][tier] = result.pricing.bookCents;
+            matrix[trimId][tier] = result.printingOnlyCents;
           })
         );
       })
     );
     return matrix;
   },
-  ["marketing-book-price-matrix-v1"],
+  ["marketing-book-price-matrix-v2"],
   { revalidate: 3600 }
 );

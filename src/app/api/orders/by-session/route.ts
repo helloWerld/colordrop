@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const { data: order, error } = await supabase
     .from("orders")
     .select(
-      "id, book_id, amount_total, status, created_at",
+      "id, book_id, amount_total, status, created_at, lulu_print_job_id, error_message",
     )
     .eq("stripe_checkout_session_id", sessionId)
     .eq("user_id", userId)

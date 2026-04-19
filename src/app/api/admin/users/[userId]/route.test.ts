@@ -42,7 +42,7 @@ describe("GET /api/admin/users/[userId]", () => {
     );
 
     const response = await GET(new Request("http://localhost"), {
-      params: { userId: "user_1" },
+      params: Promise.resolve({ userId: "user_1" }),
     });
 
     expect(response.status).toBe(403);
@@ -54,7 +54,7 @@ describe("GET /api/admin/users/[userId]", () => {
     getAdminUserCockpitDataMock.mockRejectedValue(new Error("USER_NOT_FOUND"));
 
     const response = await GET(new Request("http://localhost"), {
-      params: { userId: "missing_user" },
+      params: Promise.resolve({ userId: "missing_user" }),
     });
     expect(response.status).toBe(404);
     const body = await response.json();
@@ -81,7 +81,7 @@ describe("GET /api/admin/users/[userId]", () => {
     });
 
     const response = await GET(new Request("http://localhost"), {
-      params: { userId: "user_1" },
+      params: Promise.resolve({ userId: "user_1" }),
     });
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -139,7 +139,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creditsToAdd: 5 }),
       }),
-      { params: { userId: "user_1" } },
+      { params: Promise.resolve({ userId: "user_1" }) },
     );
 
     expect(response.status).toBe(403);
@@ -157,7 +157,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         body: "not-json",
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { userId: "user_1" } },
+      { params: Promise.resolve({ userId: "user_1" }) },
     );
 
     expect(response.status).toBe(400);
@@ -180,7 +180,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }),
-        { params: { userId: "user_1" } },
+        { params: Promise.resolve({ userId: "user_1" }) },
       );
       expect(response.status).toBe(400);
     }
@@ -199,7 +199,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ creditsToAdd: n }),
         }),
-        { params: { userId: "user_1" } },
+        { params: Promise.resolve({ userId: "user_1" }) },
       );
       expect(response.status).toBe(400);
     }
@@ -217,7 +217,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creditsToAdd: 1, reason: 99 }),
       }),
-      { params: { userId: "user_1" } },
+      { params: Promise.resolve({ userId: "user_1" }) },
     );
     expect(response.status).toBe(400);
   });
@@ -236,7 +236,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creditsToAdd: 2 }),
       }),
-      { params: { userId: "missing" } },
+      { params: Promise.resolve({ userId: "missing" }) },
     );
     expect(response.status).toBe(404);
   });
@@ -258,7 +258,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creditsToAdd: 1 }),
       }),
-      { params: { userId: "user_1" } },
+      { params: Promise.resolve({ userId: "user_1" }) },
     );
     expect(response.status).toBe(500);
   });
@@ -285,7 +285,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creditsToAdd: 3 }),
       }),
-      { params: { userId: "user_1" } },
+      { params: Promise.resolve({ userId: "user_1" }) },
     );
     expect(response.status).toBe(500);
   });
@@ -310,7 +310,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creditsToAdd: 4, reason: "goodwill" }),
       }),
-      { params: { userId: "user_1" } },
+      { params: Promise.resolve({ userId: "user_1" }) },
     );
 
     expect(response.status).toBe(200);
@@ -358,7 +358,7 @@ describe("POST /api/admin/users/[userId] (add free credits)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creditsToAdd: 2, reason: "support" }),
       }),
-      { params: { userId: "user_1" } },
+      { params: Promise.resolve({ userId: "user_1" }) },
     );
 
     expect(response.status).toBe(200);
