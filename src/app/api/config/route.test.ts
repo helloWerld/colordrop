@@ -46,7 +46,10 @@ describe("GET /api/config", () => {
     process.env.ADMIN_EMAIL_ALLOWLIST = "admin@example.com";
     authMock.mockResolvedValue({ userId: "admin_1" });
     currentUserMock.mockResolvedValue({
-      primaryEmailAddress: { emailAddress: "admin@example.com" },
+      primaryEmailAddress: {
+        emailAddress: "admin@example.com",
+        verification: { status: "verified" },
+      },
       emailAddresses: [],
     });
     const { GET } = await import("./route");

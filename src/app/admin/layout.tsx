@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUserEmail, isAdminEmail } from "@/lib/admin-auth";
+import { getAdminAllowlistMatchEmail } from "@/lib/admin-auth";
 import { HeaderLogo } from "@/components/header-logo";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { AdminMobileNav } from "@/components/admin-mobile-nav";
@@ -9,8 +9,8 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const email = await getCurrentUserEmail();
-  if (!isAdminEmail(email)) {
+  const adminEmail = await getAdminAllowlistMatchEmail();
+  if (!adminEmail) {
     redirect("/dashboard");
   }
 
