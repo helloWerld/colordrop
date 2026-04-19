@@ -34,6 +34,15 @@ describe("admin-auth", () => {
         emailAddresses: [],
       }),
     ).toEqual(["a@example.com"]);
+    expect(
+      collectNormalizedVerifiedEmails({
+        primaryEmailAddress: {
+          emailAddress: "B@Example.com",
+          verification: { status: "transferable" },
+        },
+        emailAddresses: [],
+      }),
+    ).toEqual(["b@example.com"]);
   });
 
   it("returns unauthorized when user is missing", async () => {
@@ -76,6 +85,26 @@ describe("admin-auth", () => {
           verification: { status: "verified" },
         },
       ],
+    });
+    const { requireAdminApi } = await import("@/lib/admin-auth");
+
+    const response = await requireAdminApi();
+    expect("status" in response).toBe(false);
+    expect(response).toEqual({
+      userId: "user_1",
+      email: "admin@example.com",
+    });
+  });
+
+  it("authorizes when allowlisted email has Clerk verification status transferable", async () => {
+    process.env.ADMIN_EMAIL_ALLOWLIST = "admin@example.com";
+    authMock.mockResolvedValue({ userId: "user_1" });
+    currentUserMock.mockResolvedValue({
+      primaryEmailAddress: {
+        emailAddress: "admin@example.com",
+        verification: { status: "transferable" },
+      },
+      emailAddresses: [],
     });
     const { requireAdminApi } = await import("@/lib/admin-auth");
 

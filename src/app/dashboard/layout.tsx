@@ -1,6 +1,7 @@
 import { DashboardHeaderNav } from "@/components/dashboard-header-nav";
 import { currentUser } from "@clerk/nextjs/server";
 import { HeaderLogo } from "@/components/header-logo";
+import { getAdminAllowlistMatchForClerkUser } from "@/lib/admin-auth";
 import { isLuluSandbox } from "@/lib/lulu";
 import { isStripeTestMode } from "@/lib/stripe";
 
@@ -14,6 +15,7 @@ export default async function DashboardLayout({
   const user = await currentUser();
   const userEmail =
     user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress;
+  const showAdminNav = getAdminAllowlistMatchForClerkUser(user) !== null;
   const luluSandbox = isLuluSandbox();
   const stripeTestMode = isStripeTestMode();
   return (
@@ -21,7 +23,11 @@ export default async function DashboardLayout({
       <header className="flex w-full items-center justify-between border-b border-border/40 bg-background/95 backdrop-blur">
         <div className="flex w-full h-14 items-center justify-between px-4">
           <HeaderLogo href="/dashboard" size="sm" />
-          <DashboardHeaderNav showLuluDev={isDev} userEmail={userEmail} />
+          <DashboardHeaderNav
+            showLuluDev={isDev}
+            userEmail={userEmail}
+            showAdminNav={showAdminNav}
+          />
         </div>
       </header>
       {stripeTestMode && (

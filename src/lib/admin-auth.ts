@@ -15,8 +15,14 @@ type UserLike = {
   primaryEmailAddress?: EmailAddressLike | null;
 };
 
-function isClerkEmailVerified(entry: EmailAddressLike): boolean {
-  return entry.verification?.status === "verified";
+/**
+ * Clerk `Verification.status` values include: unverified, verified, transferable,
+ * failed, expired (@clerk/backend Verification). For admin allowlist we accept
+ * verified and transferable so OAuth / linking flows are not falsely rejected.
+ */
+function isClerkEmailAllowlistEligible(entry: EmailAddressLike): boolean {
+  const status = entry.verification?.status;
+  return status === "verified" || status === "transferable";
 }
 
 function emailEntriesForAdminCheck(user: UserLike | null | undefined): EmailAddressLike[] {
@@ -33,14 +39,17 @@ function emailEntriesForAdminCheck(user: UserLike | null | undefined): EmailAddr
   return entries;
 }
 
-/** Normalized emails that are verified in Clerk (OAuth / magic link / etc.). */
+/**
+ * Normalized emails on the user whose Clerk verification status is eligible
+ * for allowlist matching (verified or transferable).
+ */
 export function collectNormalizedVerifiedEmails(
   user: UserLike | null | undefined,
 ): string[] {
   const out: string[] = [];
   for (const entry of emailEntriesForAdminCheck(user)) {
     if (!entry?.emailAddress) continue;
-    if (!isClerkEmailVerified(entry)) continue;
+    if (!isClerkEmailAllowlistEligible(entry)) continue;
     out.push(normalizeEmail(entry.emailAddress));
   }
   return out;
@@ -48,11 +57,11 @@ export function collectNormalizedVerifiedEmails(
 
 function firstAllowlistedEmail(
   allowlist: string[],
-  verifiedNormalized: string[],
+  eligibleNormalized: string[],
 ): string | null {
-  if (allowlist.length === 0 || verifiedNormalized.length === 0) return null;
+  if (allowlist.length === 0 || eligibleNormalized.length === 0) return null;
   const allow = new Set(allowlist);
-  for (const email of verifiedNormalized) {
+  for (const email of eligibleNormalized) {
     if (allow.has(email)) return email;
   }
   return null;
@@ -66,6 +75,15 @@ export function getAdminEmailAllowlist(): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+/** First allowlisted normalized email for this Clerk user, or null. */
+export function getAdminAllowlistMatchForClerkUser(
+  user: UserLike | null | undefined,
+): string | null {
+  const allowlist = getAdminEmailAllowlist();
+  if (allowlist.length === 0) return null;
+  return firstAllowlistedEmail(allowlist, collectNormalizedVerifiedEmails(user));
+}
+
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const normalized = normalizeEmail(email);
@@ -74,19 +92,15 @@ export function isAdminEmail(email: string | null | undefined): boolean {
 }
 
 /**
- * First verified Clerk email on the signed-in user that appears in
- * `ADMIN_EMAIL_ALLOWLIST`, or null. Uses `currentUser()` then Backend API fallback.
+ * First eligible Clerk email on the signed-in user that appears in
+ * `ADMIN_EMAIL_ALLOWLIST`, or null. Uses `currentUser()`; only calls Backend
+ * `getUser` again when `currentUser()` is null but the session still has a userId.
  */
 export async function getAdminAllowlistMatchEmail(): Promise<string | null> {
-  const allowlist = getAdminEmailAllowlist();
-  if (allowlist.length === 0) return null;
-
   const sessionUser = await currentUser();
-  const fromSession = firstAllowlistedEmail(
-    allowlist,
-    collectNormalizedVerifiedEmails(sessionUser),
-  );
+  const fromSession = getAdminAllowlistMatchForClerkUser(sessionUser);
   if (fromSession) return fromSession;
+  if (sessionUser !== null) return null;
 
   const { userId } = await auth();
   if (!userId) return null;
@@ -94,7 +108,7 @@ export async function getAdminAllowlistMatchEmail(): Promise<string | null> {
   try {
     const clerk = await clerkClient();
     const user = await clerk.users.getUser(userId);
-    return firstAllowlistedEmail(allowlist, collectNormalizedVerifiedEmails(user));
+    return getAdminAllowlistMatchForClerkUser(user);
   } catch {
     return null;
   }

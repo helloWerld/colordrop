@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Menu,
   Save,
+  Shield,
   X,
 } from "lucide-react";
 import { DashboardLogoutButton } from "@/components/dashboard-logout-button";
@@ -22,11 +23,13 @@ const linkClass =
 type DashboardHeaderNavProps = {
   showLuluDev: boolean;
   userEmail?: string | null;
+  showAdminNav?: boolean;
 };
 
 export function DashboardHeaderNav({
   showLuluDev,
   userEmail,
+  showAdminNav = false,
 }: DashboardHeaderNavProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -143,6 +146,12 @@ export function DashboardHeaderNav({
               <Coins className="w-4 h-4" />
               Buy Credits
             </Link>
+            {showAdminNav && (
+              <Link href="/admin" className={linkClass} {...navLinkProps}>
+                <Shield className="w-4 h-4" />
+                Admin
+              </Link>
+            )}
             <div className="mt-4 pt-4">
               <DashboardLogoutButton
                 label="Logout"
