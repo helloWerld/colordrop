@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .container {
+    @apply mx-auto;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

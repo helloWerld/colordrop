@@ -106,7 +106,7 @@ function ConfirmationContent() {
 
   if (!sessionId) {
     return (
-      <div className="container flex min-h-[50vh] flex-col items-center justify-center px-4">
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-md flex-col items-center justify-center px-4">
         <p className="text-muted-foreground">
           Missing session. Did you complete checkout?
         </p>
@@ -126,7 +126,7 @@ function ConfirmationContent() {
         status: order.status,
       });
     return (
-      <div className="container flex mx-auto min-h-[50vh] flex-col items-center justify-center px-4 text-center max-w-md">
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-md flex-col items-center justify-center px-4 text-center">
         <LoadingSpinner size="lg" decorative className="text-primary" />
         <p className="mt-6 font-medium text-foreground">
           {awaitingLulu
@@ -165,7 +165,7 @@ function ConfirmationContent() {
 
   if (timedOut && !order) {
     return (
-      <div className="container flex min-h-[50vh] flex-col items-center justify-center px-4 text-center max-w-md mx-auto">
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-md flex-col items-center justify-center px-4 text-center">
         <p className="font-medium text-foreground">
           We couldn&apos;t confirm yet
         </p>
@@ -201,7 +201,7 @@ function ConfirmationContent() {
     })
   ) {
     return (
-      <div className="container flex min-h-[50vh] flex-col items-center justify-center px-4 text-center max-w-md mx-auto">
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-md flex-col items-center justify-center px-4 text-center">
         <p className="font-medium text-foreground">
           Payment received — printer handoff is taking longer than usual
         </p>
@@ -229,7 +229,7 @@ function ConfirmationContent() {
 
   if (order && isOrderFulfillmentFailed(order)) {
     return (
-      <div className="container flex min-h-[50vh] flex-col items-center justify-center px-4 text-center max-w-md mx-auto">
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-md flex-col items-center justify-center px-4 text-center">
         <p className="font-medium text-foreground">
           {order.status === "refunded"
             ? "We could not complete printing — your payment was returned"
@@ -258,7 +258,7 @@ function ConfirmationContent() {
 
   if (!order || !isOrderPrintSubmitted(order)) {
     return (
-      <div className="container flex min-h-[50vh] flex-col items-center justify-center px-4">
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-md flex-col items-center justify-center px-4">
         <p className="text-muted-foreground">
           We couldn&apos;t find your order. It may still be processing.
         </p>
@@ -270,7 +270,7 @@ function ConfirmationContent() {
   }
 
   return (
-    <div className="container flex min-h-[60vh] flex-col items-center justify-center px-4">
+    <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl flex-col items-center justify-center px-4">
       <div className="rounded-full bg-primary/20 p-4 text-4xl">✓</div>
       <h1 className="mt-6 font-heading text-2xl font-bold text-foreground">
         Your coloring book is in the works!
@@ -316,7 +316,7 @@ export default function OrderConfirmationPage() {
   return (
     <Suspense
       fallback={
-        <div className="container flex min-h-[50vh] items-center justify-center px-4 text-muted-foreground">
+        <div className="mx-auto flex min-h-[50vh] w-full max-w-md items-center justify-center px-4 text-muted-foreground">
           Loading…
         </div>
       }

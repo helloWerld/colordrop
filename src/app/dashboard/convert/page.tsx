@@ -87,6 +87,7 @@ export default function ConvertPage() {
     clearSourceOnly();
     setResultUrl(null);
     setSavedConversionId(null);
+    void loadCredits();
   };
 
   const handleConvert = async () => {
@@ -184,139 +185,141 @@ export default function ConvertPage() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <label className="block font-medium text-foreground">Image</label>
+      {!resultUrl && (
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <label className="block font-medium text-foreground">Image</label>
 
-        {credits != null && (
-          <div className="mt-4 flex w-full flex-row items-center justify-between rounded-xl border border-primary bg-primary/5 px-3 py-2">
-            <p className="text-base font-bold text-primary">
-              {totalCredits} credits available
-            </p>
-            <a
-              href="/dashboard/buy-credits"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Buy credits →
-            </a>
-          </div>
-        )}
-
-        {totalCredits === 0 && credits != null && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No credits left.{" "}
-            <a
-              href="/dashboard/buy-credits"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              Buy credits
-            </a>{" "}
-            to convert more images.
-          </p>
-        )}
-
-        <div className="mt-4">
-          {!previewFile ? (
-            <label
-              className={`flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 ${
-                loading ? "pointer-events-none opacity-50" : ""
-              }`}
-            >
-              <Image className="h-4 w-4" aria-hidden />
-              Select image
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                disabled={loading}
-                onChange={handleFileSelect}
-              />
-            </label>
-          ) : (
-            <div className="w-full rounded-xl border border-border bg-muted/20 p-4">
-              <p className="text-sm font-medium text-foreground">
-                Image preview
+          {credits != null && (
+            <div className="mt-4 flex w-full flex-row items-center justify-between rounded-xl border border-primary bg-primary/5 px-3 py-2">
+              <p className="text-base font-bold text-primary">
+                {totalCredits} credits available
               </p>
-              {previewUrl && (
-                <img
-                  src={previewUrl}
-                  alt="Original preview"
-                  className="mt-2 aspect-square h-fit w-full rounded-lg border border-border object-contain"
-                />
-              )}
-              {loading ? (
-                <div className="mt-4 rounded-lg border border-border bg-background p-4">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent"
-                      aria-hidden
-                    />
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {conversionStep === "uploading" && "Uploading image…"}
-                        {conversionStep === "processing" &&
-                          "Processing with AI…"}
-                        {conversionStep === "preparing" && "Preparing image…"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {conversionStep === "uploading" &&
-                          "Sending your photo to the server."}
-                        {conversionStep === "processing" &&
-                          "AI is turning your photo into a coloring page."}
-                        {conversionStep === "preparing" &&
-                          "Almost done—saving your page."}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="mt-2 text-sm text-amber-600 dark:text-amber-500">
-                    {credits != null && credits.free_remaining > 0
-                      ? "This conversion uses 1 free credit."
-                      : "This conversion uses 1 paid credit."}
-                  </p>
-                  {error && (
-                    <p className="mt-2 text-sm text-destructive">{error}</p>
-                  )}
-                  <div className="mt-4 max-w-xl">
-                    <UploadConsentCheckbox
-                      id="convert-upload-consent"
-                      checked={uploadConsent}
-                      onCheckedChange={setUploadConsent}
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <button
-                      type="button"
-                      onClick={handleConvert}
-                      disabled={
-                        loading || totalCredits === 0 || !uploadConsent
-                      }
-                      className="flex flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      <Wand2 className="h-4 w-4" aria-hidden />
-                      Convert
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearSourceOnly}
-                      disabled={loading}
-                      className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50 disabled:opacity-50"
-                    >
-                      Change image
-                    </button>
-                  </div>
-                </>
-              )}
+              <a
+                href="/dashboard/buy-credits"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Buy credits →
+              </a>
             </div>
           )}
+
+          {totalCredits === 0 && credits != null && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No credits left.{" "}
+              <a
+                href="/dashboard/buy-credits"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Buy credits
+              </a>{" "}
+              to convert more images.
+            </p>
+          )}
+
+          <div className="mt-4">
+            {!previewFile ? (
+              <label
+                className={`flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  loading ? "pointer-events-none opacity-50" : ""
+                }`}
+              >
+                <Image className="h-4 w-4" aria-hidden />
+                Select image
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  disabled={loading}
+                  onChange={handleFileSelect}
+                />
+              </label>
+            ) : (
+              <div className="w-full rounded-xl border border-border bg-muted/20 p-4">
+                <p className="text-sm font-medium text-foreground">
+                  Image preview
+                </p>
+                {previewUrl && (
+                  <img
+                    src={previewUrl}
+                    alt="Original preview"
+                    className="mt-2 aspect-square h-fit w-full rounded-lg border border-border object-contain"
+                  />
+                )}
+                {loading ? (
+                  <div className="mt-4 rounded-lg border border-border bg-background p-4">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent"
+                        aria-hidden
+                      />
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {conversionStep === "uploading" && "Uploading image…"}
+                          {conversionStep === "processing" &&
+                            "Processing with AI…"}
+                          {conversionStep === "preparing" && "Preparing image…"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {conversionStep === "uploading" &&
+                            "Sending your photo to the server."}
+                          {conversionStep === "processing" &&
+                            "AI is turning your photo into a coloring page."}
+                          {conversionStep === "preparing" &&
+                            "Almost done—saving your page."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm text-amber-600 dark:text-amber-500">
+                      {credits != null && credits.free_remaining > 0
+                        ? "This conversion uses 1 free credit."
+                        : "This conversion uses 1 paid credit."}
+                    </p>
+                    {error && (
+                      <p className="mt-2 text-sm text-destructive">{error}</p>
+                    )}
+                    <div className="mt-4 max-w-xl">
+                      <UploadConsentCheckbox
+                        id="convert-upload-consent"
+                        checked={uploadConsent}
+                        onCheckedChange={setUploadConsent}
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={handleConvert}
+                        disabled={
+                          loading || totalCredits === 0 || !uploadConsent
+                        }
+                        className="flex flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        <Wand2 className="h-4 w-4" aria-hidden />
+                        Convert
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearSourceOnly}
+                        disabled={loading}
+                        className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50 disabled:opacity-50"
+                      >
+                        Change image
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {resultUrl && (
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -328,40 +331,34 @@ export default function ConvertPage() {
             alt="Coloring page result"
             className="mt-4 max-h-[400px] w-full rounded-lg border border-border object-contain"
           />
-          <div className="mt-4 flex flex-wrap gap-3">
-            <a
-              href={resultUrl}
-              download="coloring-page.png"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Download
-            </a>
-            <a
-              href={resultUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg border border-primary bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10"
-            >
-              Open for printing
-            </a>
-            <Link
-              href="/dashboard/books/new"
-              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50"
-            >
-              Add to Book
-            </Link>
-            <Link
-              href="/dashboard/saved-pages"
-              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50"
-            >
-              View in My Saved Pages
-            </Link>
+          <div className="mt-4 flex w-full flex-col flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-row gap-4 flex-wrap">
+              <a
+                href={resultUrl}
+                download="coloring-page.png"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50 flex-1 whitespace-nowrap text-center"
+              >
+                Download / Print
+              </a>
+              <Link
+                href="/dashboard/books/new"
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50 flex-1 whitespace-nowrap text-center"
+              >
+                Add to Book
+              </Link>
+              <Link
+                href="/dashboard/saved-pages"
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50  flex-1 whitespace-nowrap text-center"
+              >
+                View Your Saved Pages
+              </Link>
+            </div>
             <button
               type="button"
               onClick={startNewConversion}
-              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50"
+              className="rounded-lg border border-border bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 mt-4 w-full"
             >
               Convert another image
             </button>

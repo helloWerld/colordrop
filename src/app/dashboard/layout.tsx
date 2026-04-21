@@ -19,7 +19,7 @@ export default async function DashboardLayout({
   const luluSandbox = isLuluSandbox();
   const stripeTestMode = isStripeTestMode();
   return (
-    <div className="flex flex-col items-center justify-start w-full min-h-screen bg-background max-w-7xl mx-auto">
+    <div className="flex min-h-screen w-full flex-col bg-background">
       <header className="flex w-full items-center justify-between border-b border-border/40 bg-background/95 backdrop-blur">
         <div className="flex w-full h-14 items-center justify-between px-4">
           <HeaderLogo href="/dashboard" size="sm" />
@@ -59,7 +59,7 @@ export default async function DashboardLayout({
           printed or shipped.
         </div>
       )}
-      <main className="flex flex-col w-full items-center min-h-screen justify-center px-4 py-8">
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-8">
         {children}
       </main>
     </div>

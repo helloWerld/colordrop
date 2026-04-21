@@ -63,7 +63,7 @@ export default function RootLayout({
 
   return (
     <html lang="en" className={`${nunito.variable} ${inter.variable}`}>
-      <body className="flex flex-col items-stretch min-h-screen mx-auto w-full max-w-7xl font-sans antialiased bg-background text-foreground">
+      <body className="min-h-screen w-full font-sans antialiased bg-background text-foreground">
         {bodyContent}
         <Analytics />
       </body>
