@@ -168,12 +168,7 @@ export default async function LandingPage() {
             <p className="mt-4 text-lg text-muted-foreground">
               Upload photos. AI makes the outlines. We print your coloring book.
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Printed books ship to the <strong>United States</strong> and{" "}
-              <strong>Canada</strong> only. Conversion credits are for AI
-              conversions only—book printing and shipping are always a separate
-              charge at checkout.
-            </p>
+
             <Link
               href="/sign-up"
               className="mt-8 inline-block rounded-lg bg-primary px-8 py-4 text-lg font-medium text-primary-foreground shadow-lg hover:bg-primary/90"
